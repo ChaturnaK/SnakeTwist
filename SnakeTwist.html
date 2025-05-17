@@ -212,6 +212,19 @@
     </div>
     <!-- EDGE SWIPE AREA -->
     <div id="swipe-edge-area" style="display:none"></div>
+    <div id="swipe-hint-overlay"
+        style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(56,189,248,0.18);z-index:200;align-items:center;justify-content:center;pointer-events:none;">
+        <div style="font-size:2.2em;color:#0ea5e9;text-shadow:0 2px 16px #fff,0 0 8px #bae6fd;">
+            <div style="font-size:1.1em;">Swipe anywhere</div>
+            <div style="font-size:0.7em;opacity:0.83;margin-bottom:12px;">to turn the snake</div>
+            <div>
+                <span style="font-size:1.8em;vertical-align:middle;">⬅️</span>
+                <span style="font-size:1.5em;vertical-align:middle;">⬆️</span>
+                <span style="font-size:1.8em;vertical-align:middle;">➡️</span>
+                <span style="font-size:1.5em;vertical-align:middle;">⬇️</span>
+            </div>
+        </div>
+    </div>
     <!-- Control Modal -->
     <div id="control-modal">
         <div>
@@ -273,6 +286,22 @@
         let tiltGammaAvg = 0, tiltBetaAvg = 0;
         let smoothingFactor = 0.25;
         let gameStarted = false;
+
+        // --- Swipe Hint Overlay for Mobile ---
+        const swipeHintOverlay = document.getElementById('swipe-hint-overlay');
+        function showSwipeHint() {
+            if (!isTouchDevice()) return;
+            swipeHintOverlay.style.display = 'flex';
+            setTimeout(() => {
+                swipeHintOverlay.style.transition = "opacity 0.8s";
+                swipeHintOverlay.style.opacity = "0";
+                setTimeout(() => {
+                    swipeHintOverlay.style.display = 'none';
+                    swipeHintOverlay.style.opacity = "";
+                    swipeHintOverlay.style.transition = "";
+                }, 800);
+            }, 1750);
+        }
 
         // --- Control Modal Selection Logic ---
         tapModeBtn.onclick = function () {
@@ -391,6 +420,7 @@
             }
             if (isTouchDevice()) {
                 enableSwipeControls();
+                showSwipeHint();
             } else {
                 disableSwipeControls();
             }
