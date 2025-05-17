@@ -390,8 +390,23 @@
         const scoreBar = document.getElementById('score-bar');
         const speedBar = document.getElementById('speed-bar');
         const speedBarIndicator = document.getElementById('speed-bar-indicator');
-        const gridSize = 10;
-        const tileCount = 40;
+        let tileCount = 40;
+        let gridSize = 10;
+
+        // Dynamically set grid for mobile screens
+        function adjustGridForScreen() {
+            let size = Math.min(window.innerWidth * 0.96, window.innerHeight * 0.6, 400);
+            if (size < 340) {
+                tileCount = 22;
+            } else if (size < 400) {
+                tileCount = 28;
+            } else {
+                tileCount = 40;
+            }
+            gridSize = Math.floor(size / tileCount);
+            canvas.width = gridSize * tileCount;
+            canvas.height = gridSize * tileCount;
+        }
         let snake, direction, nextDirection, food, score;
         let holdingKey = false;
         let heldDirection = null;
@@ -877,6 +892,7 @@
             let size = Math.min(window.innerWidth * 0.96, window.innerHeight * 0.6, 400);
             canvas.style.width = size + "px";
             canvas.style.height = size + "px";
+            adjustGridForScreen();
         }
         window.addEventListener("resize", fitCanvas);
         fitCanvas();
