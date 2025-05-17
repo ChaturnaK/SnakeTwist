@@ -219,6 +219,19 @@
             transition: background 0.18s;
         }
 
+        #dpad-container,
+        .dpad,
+        .dpad-btn {
+            user-select: none;
+            -webkit-user-select: none;
+            outline: none !important;
+        }
+
+        .dpad-btn {
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 2px 18px #38bdf866;
+        }
+
         .dpad-btn:active {
             background: #38bdf8;
         }
@@ -317,15 +330,23 @@
     <div id="dpad-container">
         <div class="dpad">
             <div class="dpad-row">
-                <button class="dpad-btn" id="dpad-up">▲</button>
+                <button class="dpad-btn" id="dpad-up"><svg viewBox="0 0 40 40" width="34" height="34">
+                        <polygon points="20,10 32,30 8,30" fill="white" />
+                    </svg></button>
             </div>
             <div class="dpad-row">
-                <button class="dpad-btn" id="dpad-left">◀</button>
+                <button class="dpad-btn" id="dpad-left"><svg viewBox="0 0 40 40" width="34" height="34">
+                        <polygon points="10,20 30,8 30,32" fill="white" />
+                    </svg></button>
                 <div style="width:10px;"></div>
-                <button class="dpad-btn" id="dpad-right">▶</button>
+                <button class="dpad-btn" id="dpad-right"><svg viewBox="0 0 40 40" width="34" height="34">
+                        <polygon points="30,20 10,8 10,32" fill="white" />
+                    </svg></button>
             </div>
             <div class="dpad-row">
-                <button class="dpad-btn" id="dpad-down">▼</button>
+                <button class="dpad-btn" id="dpad-down"><svg viewBox="0 0 40 40" width="34" height="34">
+                        <polygon points="20,30 32,10 8,10" fill="white" />
+                    </svg></button>
             </div>
         </div>
     </div>
