@@ -156,6 +156,9 @@
             box-shadow: 0 8px 32px #38bdf866, 0 0 0 2px #bae6fd88;
             display: block;
             margin-top: 16px;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
     </style>
 </head>
@@ -492,6 +495,7 @@
             let settingNeutral = true;
             canvas.style.cursor = "crosshair";
             function onTap(e) {
+                if (e.touches) e.preventDefault();
                 let rect = canvas.getBoundingClientRect();
                 let touch = (e.touches && e.touches[0]) || e;
                 iosNeutralTouch = {
@@ -523,9 +527,11 @@
             draw();
         }
         function iosTouchStart(e) {
+            if (e.touches) e.preventDefault();
             iosTouchActive = true;
         }
         function iosTouchMove(e) {
+            if (e.touches) e.preventDefault();
             if (!iosTouchActive || !iosNeutralTouch) return;
             let rect = canvas.getBoundingClientRect();
             let touch = (e.touches && e.touches[0]) || e;
@@ -535,50 +541,48 @@
             };
             let dx = cur.x - iosNeutralTouch.x;
             let dy = cur.y - iosNeutralTouch.y;
-            // Horizontal vs Vertical dominance
+            let threshold = tiltSensitivity;
+            let maxAccelDist = 80;
+            let accelFactor = 1;
+            // Horizontal or vertical
             if (Math.abs(dx) > Math.abs(dy)) {
-                if (dx > tiltSensitivity && direction !== 'left') {
+                if (dx > threshold && direction !== 'left') {
                     nextDirection = 'right';
                     holdingKey = true;
                     heldDirection = 'right';
-                } else if (dx < -tiltSensitivity && direction !== 'right') {
+                    accelFactor = Math.min(Math.abs(dx) / maxAccelDist, 1.5);
+                } else if (dx < -threshold && direction !== 'right') {
                     nextDirection = 'left';
                     holdingKey = true;
                     heldDirection = 'left';
-                } else if (
-                    (direction === 'left' && dx > tiltSensitivity / 2) ||
-                    (direction === 'right' && dx < -tiltSensitivity / 2)
-                ) {
-                    // Braking for opposite side
-                    holdingKey = true;
-                    heldDirection = dx > 0 ? 'right' : 'left';
+                    accelFactor = Math.min(Math.abs(dx) / maxAccelDist, 1.5);
                 } else {
                     holdingKey = false;
                     heldDirection = null;
                 }
             } else {
-                if (dy > tiltSensitivity && direction !== 'up') {
+                if (dy > threshold && direction !== 'up') {
                     nextDirection = 'down';
                     holdingKey = true;
                     heldDirection = 'down';
-                } else if (dy < -tiltSensitivity && direction !== 'down') {
+                    accelFactor = Math.min(Math.abs(dy) / maxAccelDist, 1.5);
+                } else if (dy < -threshold && direction !== 'down') {
                     nextDirection = 'up';
                     holdingKey = true;
                     heldDirection = 'up';
-                } else if (
-                    (direction === 'up' && dy > tiltSensitivity / 2) ||
-                    (direction === 'down' && dy < -tiltSensitivity / 2)
-                ) {
-                    // Braking for opposite side
-                    holdingKey = true;
-                    heldDirection = dy > 0 ? 'down' : 'up';
+                    accelFactor = Math.min(Math.abs(dy) / maxAccelDist, 1.5);
                 } else {
                     holdingKey = false;
                     heldDirection = null;
                 }
             }
+            // Adjust acceleration for touch drag
+            if (holdingKey && heldDirection === direction) {
+                currentSpeed = Math.max(getNormalSpeed(score) * (1 - (accelFactor - 1)), 18);
+            }
         }
         function iosTouchEnd(e) {
+            if (e.touches) e.preventDefault();
             iosTouchActive = false;
             holdingKey = false;
             heldDirection = null;
