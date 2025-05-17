@@ -273,6 +273,51 @@
         let tiltGammaAvg = 0, tiltBetaAvg = 0;
         let smoothingFactor = 0.25;
         let gameStarted = false;
+
+        // --- Control Modal Selection Logic ---
+        tapModeBtn.onclick = function () {
+            controlModal.style.display = "none";
+            startGameWithTap();
+        };
+        tiltModeBtn.onclick = function () {
+            tiltSteps.style.display = "block";
+            tiltPermBtn.disabled = false;
+        };
+        tiltPermBtn.onclick = function () {
+            if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+                DeviceOrientationEvent.requestPermission().then(response => {
+                    if (response === "granted") {
+                        tiltPermBtn.disabled = true;
+                        tiltPermBtn.textContent = "Permission Granted!";
+                        tiltCalibrateStep.style.display = "block";
+                    } else {
+                        alert("Permission denied.");
+                    }
+                });
+            } else {
+                // Non-iOS: proceed immediately
+                tiltCalibrateStep.style.display = "block";
+                tiltPermBtn.disabled = true;
+                tiltPermBtn.textContent = "Permission Granted!";
+            }
+        };
+        calibrateBtn.onclick = function () {
+            // Read current tilt as "base"
+            window.addEventListener("deviceorientation", function once(e) {
+                baseGamma = e.gamma || 0;
+                baseBeta = e.beta || 0;
+                tiltGammaAvg = baseGamma;
+                tiltBetaAvg = baseBeta;
+                tiltReady = true;
+                controlModal.style.display = "none";
+                startGameWithTilt();
+                window.removeEventListener("deviceorientation", once);
+            });
+        };
+        tiltSensitivityBar.oninput = function () {
+            tiltSensitivity = Number(tiltSensitivityBar.value);
+            tiltSensitivityValue.textContent = tiltSensitivity;
+        };
         // --- Game Logic and Variables ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
