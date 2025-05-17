@@ -1,0 +1,21 @@
+{
+  "name": "SnakeTwist",
+  "short_name": "SnakeTwist",
+  "start_url": "SnakeTwist.html",
+  "display": "standalone",
+  "background_color": "#f6faff",
+  "theme_color": "#38bdf8",
+  "description": "Modern Snake game with joystick and haptic feedback!",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
