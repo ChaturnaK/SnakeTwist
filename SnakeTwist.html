@@ -207,6 +207,7 @@
 </head>
 
 <body>
+    <input type="checkbox" id="haptic-switch" switch style="display:none">
     <div class="game-container">
         <div id="score-bar">Score: 0</div>
         <div id="speed-bar-container">
@@ -254,6 +255,25 @@
         </div>
     </div>
     <script>
+        // --- Haptic Feedback Utilities ---
+        function isIOS() {
+            return /iP(hone|od|ad)/.test(navigator.userAgent);
+        }
+        function isiOS18OrLater() {
+            // iOS 18: OS 18_0 like Mac OS X
+            return isIOS() && /OS 1[8-9](_\d+)?\s/.test(navigator.userAgent);
+        }
+        function triggerHapticFallback() {
+            const cb = document.getElementById('haptic-switch');
+            cb.checked = !cb.checked;
+        }
+        function hapticFeedback(duration) {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(duration || 30);
+            } else if (isiOS18OrLater()) {
+                triggerHapticFallback();
+            }
+        }
         // --- Device and UI Elements ---
         function tiltIsSupported() {
             return typeof DeviceOrientationEvent !== "undefined" &&
@@ -280,9 +300,10 @@
         let tiltGammaAvg = 0, tiltBetaAvg = 0;
         let smoothingFactor = 0.25; // for smoothing tilt
         let gameStarted = false;
-        let iosTouchMode = false;
-        let iosNeutralTouch = null;
-        let iosTouchActive = false;
+        // Remove iOS tap mode logic
+        // let iosTouchMode = false;
+        // let iosNeutralTouch = null;
+        // let iosTouchActive = false;
 
         // Joystick control variables
         const joystickContainer = document.getElementById('joystick-container');
@@ -306,15 +327,7 @@
         // Always show modal at start
         tapModeBtn.onclick = () => {
             controlModal.style.display = "none";
-            if (isIOS) {
-                // Prompt for base tap point
-                iosTapInstructions.innerHTML = "Tap your Neutral Point anywhere on the screen.<br><span style='font-size:0.9em;color:#475569'>(This is your comfortable rest position for controlling the snake)</span>";
-                iosTapInstructions.style.display = "block";
-                iosTouchMode = true;
-                setTimeout(() => { setupIOSTapBase(); }, 100);
-            } else {
-                setTimeout(() => { startGameWithTap(); }, 350);
-            }
+            setTimeout(() => { startGameWithTap(); }, 350);
         };
         tiltModeBtn.onclick = () => {
             if (tiltIsSupported()) {
@@ -557,103 +570,7 @@
             }
         }
 
-        // --- iOS Touch Mode: Tap to Set Neutral Point, Then Move Finger for Direction ---
-        function setupIOSTapBase() {
-            let settingNeutral = true;
-            canvas.style.cursor = "crosshair";
-            function onTap(e) {
-                if (e.touches) e.preventDefault();
-                let rect = canvas.getBoundingClientRect();
-                let touch = (e.touches && e.touches[0]) || e;
-                iosNeutralTouch = {
-                    x: (touch.clientX - rect.left),
-                    y: (touch.clientY - rect.top)
-                };
-                iosTapInstructions.innerHTML = "Hold and drag your finger from the Neutral Point.<br>Swipe in a direction to move and accelerate the snake.<br>Release to return to normal speed.";
-                settingNeutral = false;
-                canvas.style.cursor = "pointer";
-                // Start game
-                setTimeout(() => { startGameWithIOSTouch(); }, 350);
-                canvas.removeEventListener('mousedown', onTap);
-                canvas.removeEventListener('touchstart', onTap);
-            }
-            canvas.addEventListener('mousedown', onTap, { once: true });
-            canvas.addEventListener('touchstart', onTap, { once: true });
-        }
-        function startGameWithIOSTouch() {
-            resetGameVars();
-            tiltSensitivityContainer.style.display = "none";
-            gameStarted = true;
-            // Listen for finger moves
-            canvas.addEventListener('touchstart', iosTouchStart);
-            canvas.addEventListener('touchmove', iosTouchMove);
-            canvas.addEventListener('touchend', iosTouchEnd);
-            canvas.addEventListener('mousedown', iosTouchStart);
-            canvas.addEventListener('mousemove', iosTouchMove);
-            canvas.addEventListener('mouseup', iosTouchEnd);
-            draw();
-        }
-        function iosTouchStart(e) {
-            if (e.touches) e.preventDefault();
-            iosTouchActive = true;
-        }
-        function iosTouchMove(e) {
-            if (e.touches) e.preventDefault();
-            if (!iosTouchActive || !iosNeutralTouch) return;
-            let rect = canvas.getBoundingClientRect();
-            let touch = (e.touches && e.touches[0]) || e;
-            let cur = {
-                x: (touch.clientX - rect.left),
-                y: (touch.clientY - rect.top)
-            };
-            let dx = cur.x - iosNeutralTouch.x;
-            let dy = cur.y - iosNeutralTouch.y;
-            let threshold = tiltSensitivity;
-            let maxAccelDist = 80;
-            let accelFactor = 1;
-            // Horizontal or vertical
-            if (Math.abs(dx) > Math.abs(dy)) {
-                if (dx > threshold && direction !== 'left') {
-                    nextDirection = 'right';
-                    holdingKey = true;
-                    heldDirection = 'right';
-                    accelFactor = Math.min(Math.abs(dx) / maxAccelDist, 1.5);
-                } else if (dx < -threshold && direction !== 'right') {
-                    nextDirection = 'left';
-                    holdingKey = true;
-                    heldDirection = 'left';
-                    accelFactor = Math.min(Math.abs(dx) / maxAccelDist, 1.5);
-                } else {
-                    holdingKey = false;
-                    heldDirection = null;
-                }
-            } else {
-                if (dy > threshold && direction !== 'up') {
-                    nextDirection = 'down';
-                    holdingKey = true;
-                    heldDirection = 'down';
-                    accelFactor = Math.min(Math.abs(dy) / maxAccelDist, 1.5);
-                } else if (dy < -threshold && direction !== 'down') {
-                    nextDirection = 'up';
-                    holdingKey = true;
-                    heldDirection = 'up';
-                    accelFactor = Math.min(Math.abs(dy) / maxAccelDist, 1.5);
-                } else {
-                    holdingKey = false;
-                    heldDirection = null;
-                }
-            }
-            // Adjust acceleration for touch drag
-            if (holdingKey && heldDirection === direction) {
-                currentSpeed = Math.max(getNormalSpeed(score) * (1 - (accelFactor - 1)), 18);
-            }
-        }
-        function iosTouchEnd(e) {
-            if (e.touches) e.preventDefault();
-            iosTouchActive = false;
-            holdingKey = false;
-            heldDirection = null;
-        }
+        // --- iOS Tap/Neutral Point mode removed ---
 
         // Joystick input handling
         joystickKnob.addEventListener('touchstart', function (e) {
@@ -707,16 +624,14 @@
             heldDirection = joyDir;
 
             // Haptic feedback on acceleration/braking
-            if (window.navigator && navigator.vibrate) {
-                if (joySpeed > 1.2 && !joyVibAccel) {
-                    navigator.vibrate(35);
-                    joyVibAccel = true;
-                    setTimeout(() => { joyVibAccel = false; }, 250);
-                } else if (joySpeed < 0.8 && !joyVibBrake) {
-                    navigator.vibrate([15, 25, 15]);
-                    joyVibBrake = true;
-                    setTimeout(() => { joyVibBrake = false; }, 300);
-                }
+            if (joySpeed > 1.2 && !joyVibAccel) {
+                hapticFeedback(35);
+                joyVibAccel = true;
+                setTimeout(() => { joyVibAccel = false; }, 250);
+            } else if (joySpeed < 0.8 && !joyVibBrake) {
+                hapticFeedback([15, 25, 15]);
+                joyVibBrake = true;
+                setTimeout(() => { joyVibBrake = false; }, 300);
             }
         }, { passive: false });
 
