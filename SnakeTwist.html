@@ -388,28 +388,24 @@
         }
 
         .dpad {
-            width: 120px;
-            height: 140px;
-            background: none;
-            border-radius: 0;
-            box-shadow: none;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 0;
+            row-gap: 8px;
+            column-gap: 8px;
             pointer-events: auto;
         }
 
         .dpad-btn {
             background: transparent;
             border: none;
-            margin: 5px;
+            margin: 8px;
             padding: 0;
             border-radius: 50%;
             box-shadow: none;
-            width: 46px;
-            height: 46px;
+            width: 60px;
+            height: 60px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -446,6 +442,12 @@
         .dpad-btn {
             -webkit-tap-highlight-color: transparent;
             box-shadow: 0 2px 18px #38bdf866;
+        }
+
+        #dpad-up,
+        #dpad-down {
+            width: 60px !important;
+            height: 60px !important;
         }
 
         #dpad-placement-overlay {
@@ -538,6 +540,12 @@
 
             #tilt-sensitivity-bar {
                 width: 80px;
+            }
+
+            .dpad-btn {
+                margin: 8px !important;
+                width: 60px !important;
+                height: 60px !important;
             }
         }
     </style>
