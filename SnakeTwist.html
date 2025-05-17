@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=400, initial-scale=1.0">
-    <title>Modern Snake Game (Tap or Tilt, with Sensitivity)</title>
+    <title>Modern Snake Game (Joystick + Tilt)</title>
     <style>
         body {
             background: linear-gradient(135deg, #e9e9f2 0%, #f6faff 100%);
@@ -143,17 +143,6 @@
             width: 150px;
         }
 
-        #ios-tap-instructions {
-            display: none;
-            margin: 10px 0 0 0;
-            color: #1e293b;
-            font-weight: 500;
-            font-size: 1.1em;
-            background: #f9fafb;
-            border-radius: 10px;
-            padding: 10px 14px;
-        }
-
         canvas {
             background: #f8fafc;
             border: 4px solid #38bdf8;
@@ -165,8 +154,7 @@
             -webkit-user-select: none;
             user-select: none;
         }
-    </style>
-    <style>
+
         #joystick-container {
             position: fixed;
             right: 18px;
@@ -175,7 +163,6 @@
             height: 92px;
             z-index: 99;
             display: none;
-            /* will show on touch devices only */
             touch-action: none;
             user-select: none;
         }
@@ -225,21 +212,18 @@
             <input id="tilt-sensitivity-bar" type="range" min="5" max="35" value="12">
             <span id="tilt-sensitivity-value">12</span>
         </div>
-        <div id="ios-tap-instructions"></div>
         <canvas id="gameCanvas" width="400" height="400"></canvas>
     </div>
-
     <div id="joystick-container">
         <div id="joystick-bg"></div>
         <div id="joystick-knob"></div>
     </div>
-
     <!-- Control Modal -->
     <div id="control-modal">
         <div>
             <h2 style="margin:0 0 18px;font-size:1.5em;">Choose Control Mode</h2>
             <button id="tap-mode-btn">Touch/Arrow Keys</button><br>
-            <button id="tilt-mode-btn">Tilt (iPhone)</button>
+            <button id="tilt-mode-btn">Tilt (iPhone/Android)</button>
             <div id="tilt-steps" style="display:none;margin-top:18px;">
                 <div id="tilt-permission-step">
                     <button id="tilt-perm-btn">Enable Tilt</button>
@@ -260,7 +244,6 @@
             return /iP(hone|od|ad)/.test(navigator.userAgent);
         }
         function isiOS18OrLater() {
-            // iOS 18: OS 18_0 like Mac OS X
             return isIOS() && /OS 1[8-9](_\d+)?\s/.test(navigator.userAgent);
         }
         function triggerHapticFallback() {
@@ -279,8 +262,6 @@
             return typeof DeviceOrientationEvent !== "undefined" &&
                 typeof DeviceOrientationEvent.requestPermission === "function";
         }
-        let isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
         let controlModal = document.getElementById("control-modal");
         let tapModeBtn = document.getElementById("tap-mode-btn");
         let tiltModeBtn = document.getElementById("tilt-mode-btn");
@@ -291,40 +272,26 @@
         let tiltSensitivityContainer = document.getElementById("tilt-sensitivity-container");
         let tiltSensitivityBar = document.getElementById("tilt-sensitivity-bar");
         let tiltSensitivityValue = document.getElementById("tilt-sensitivity-value");
-        let iosTapInstructions = document.getElementById("ios-tap-instructions");
-
         // --- Game State ---
         let useTilt = false, tiltReady = false;
-        let tiltSensitivity = 12; // initial value
+        let tiltSensitivity = 12;
         let baseGamma = 0, baseBeta = 0;
         let tiltGammaAvg = 0, tiltBetaAvg = 0;
-        let smoothingFactor = 0.25; // for smoothing tilt
+        let smoothingFactor = 0.25;
         let gameStarted = false;
-        // Remove iOS tap mode logic
-        // let iosTouchMode = false;
-        // let iosNeutralTouch = null;
-        // let iosTouchActive = false;
-
         // Joystick control variables
         const joystickContainer = document.getElementById('joystick-container');
         const joystickKnob = document.getElementById('joystick-knob');
         const joystickBg = document.getElementById('joystick-bg');
         let joyActive = false;
-        let joyPos = { x: 46, y: 46 }; // Center
+        let joyPos = { x: 46, y: 46 };
         let joyDir = null;
         let joySpeed = 1;
         let joyVibAccel = false, joyVibBrake = false;
-
         function isTouchDevice() {
             return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         }
-        if (isTouchDevice()) {
-            joystickContainer.style.display = 'block';
-            // Optionally hide tilt/tap controls on mobile
-            tiltSensitivityContainer.style.display = "none";
-        }
-
-        // Always show modal at start
+        // Modal controls
         tapModeBtn.onclick = () => {
             controlModal.style.display = "none";
             setTimeout(() => { startGameWithTap(); }, 350);
@@ -335,18 +302,14 @@
                 tiltPermBtn.onclick = requestTiltPermission;
             }
         };
-        // Gray out Tilt if not supported
         if (!tiltIsSupported()) {
             tiltModeBtn.disabled = true;
             tiltModeBtn.innerText = "Tilt (Not Supported)";
         }
-
-        // Sensitivity Adjustment
         tiltSensitivityBar.oninput = function () {
             tiltSensitivity = Number(this.value);
             tiltSensitivityValue.innerText = tiltSensitivity;
         };
-
         // --- Tilt Permission and Calibration ---
         function requestTiltPermission() {
             DeviceOrientationEvent.requestPermission().then(response => {
@@ -376,14 +339,12 @@
             }
             window.addEventListener('deviceorientation', onceCalib);
         }
-
         // --- Game Logic and Variables ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreBar = document.getElementById('score-bar');
         const speedBar = document.getElementById('speed-bar');
         const speedBarIndicator = document.getElementById('speed-bar-indicator');
-
         const gridSize = 10;
         const tileCount = 40;
         let snake, direction, nextDirection, food, score;
@@ -399,11 +360,9 @@
         let animTick = 0;
         let tiltMode = false;
         let lastTiltDir = null;
-
         function getNormalSpeed(score) {
             return Math.max(100 - Math.floor(score / 5) * 5, 45);
         }
-
         function isOppositeDirection(dir1, dir2) {
             return (
                 (dir1 === 'left' && dir2 === 'right') ||
@@ -412,7 +371,6 @@
                 (dir1 === 'down' && dir2 === 'up')
             );
         }
-
         function resetGameVars() {
             snake = [{ x: 10, y: 10 }];
             direction = 'right';
@@ -426,64 +384,53 @@
             animTick = 0;
             lastTiltDir = null;
         }
-
         function startGameWithTap() {
             tiltMode = false;
             resetGameVars();
             tiltSensitivityContainer.style.display = "none";
-            if (typeof iosTapInstructions !== 'undefined' && iosTapInstructions) iosTapInstructions.style.display = "none";
             if (!gameStarted) {
                 document.addEventListener('keydown', tapKeydownHandler);
                 document.addEventListener('keyup', tapKeyupHandler);
             }
+            if (isTouchDevice()) {
+                joystickContainer.style.display = 'block';
+            } else {
+                joystickContainer.style.display = 'none';
+            }
             gameStarted = true;
             draw();
         }
-
         function startGameWithTilt() {
             tiltMode = true;
             resetGameVars();
             tiltSensitivityContainer.style.display = "flex";
-            if (typeof iosTapInstructions !== 'undefined' && iosTapInstructions) iosTapInstructions.style.display = "none";
+            joystickContainer.style.display = "none";
             window.addEventListener('deviceorientation', deviceTiltHandler);
             gameStarted = true;
             draw();
         }
-
         // --- Tap Key Controls for Desktop ---
         function tapKeydownHandler(e) {
             let pressed = false;
             switch (e.key) {
-                case 'ArrowUp':
-                case 'w':
-                case 'W':
+                case 'ArrowUp': case 'w': case 'W':
                     if (direction !== 'down') {
-                        nextDirection = 'up';
-                        pressed = true;
+                        nextDirection = 'up'; pressed = true;
                     }
                     break;
-                case 'ArrowDown':
-                case 's':
-                case 'S':
+                case 'ArrowDown': case 's': case 'S':
                     if (direction !== 'up') {
-                        nextDirection = 'down';
-                        pressed = true;
+                        nextDirection = 'down'; pressed = true;
                     }
                     break;
-                case 'ArrowLeft':
-                case 'a':
-                case 'A':
+                case 'ArrowLeft': case 'a': case 'A':
                     if (direction !== 'right') {
-                        nextDirection = 'left';
-                        pressed = true;
+                        nextDirection = 'left'; pressed = true;
                     }
                     break;
-                case 'ArrowRight':
-                case 'd':
-                case 'D':
+                case 'ArrowRight': case 'd': case 'D':
                     if (direction !== 'left') {
-                        nextDirection = 'right';
-                        pressed = true;
+                        nextDirection = 'right'; pressed = true;
                     }
                     break;
             }
@@ -509,34 +456,29 @@
                 }[e.key];
             }
         }
-
         function tapKeyupHandler(e) {
             if (
                 (e.key === 'ArrowUp' && heldDirection === 'up') ||
-                (e.key === 'w' || e.key === 'W') && heldDirection === 'up' ||
+                ((e.key === 'w' || e.key === 'W') && heldDirection === 'up') ||
                 (e.key === 'ArrowDown' && heldDirection === 'down') ||
-                (e.key === 's' || e.key === 'S') && heldDirection === 'down' ||
+                ((e.key === 's' || e.key === 'S') && heldDirection === 'down') ||
                 (e.key === 'ArrowLeft' && heldDirection === 'left') ||
-                (e.key === 'a' || e.key === 'A') && heldDirection === 'left' ||
+                ((e.key === 'a' || e.key === 'A') && heldDirection === 'left') ||
                 (e.key === 'ArrowRight' && heldDirection === 'right') ||
-                (e.key === 'd' || e.key === 'D') && heldDirection === 'right'
+                ((e.key === 'd' || e.key === 'D') && heldDirection === 'right')
             ) {
                 holdingKey = false;
                 heldDirection = null;
             }
         }
-
         // --- Tilt Handler (with smoothing and sensitivity) ---
         function deviceTiltHandler(e) {
             if (!tiltMode || !tiltReady) return;
-            // Smoothing (exponential moving average)
             tiltGammaAvg = tiltGammaAvg * (1 - smoothingFactor) + (e.gamma || 0) * smoothingFactor;
             tiltBetaAvg = tiltBetaAvg * (1 - smoothingFactor) + (e.beta || 0) * smoothingFactor;
-            let dx = tiltGammaAvg - baseGamma; // left-right
-            let dy = tiltBetaAvg - baseBeta;   // up/down
-
+            let dx = tiltGammaAvg - baseGamma;
+            let dy = tiltBetaAvg - baseBeta;
             let newDir = null;
-            // Use adjustable sensitivity
             if (dx > tiltSensitivity && direction !== 'left' && lastTiltDir !== 'right') {
                 newDir = 'right';
             } else if (dx < -tiltSensitivity && direction !== 'right' && lastTiltDir !== 'left') {
@@ -552,8 +494,6 @@
                 heldDirection = newDir;
                 lastTiltDir = newDir;
             } else {
-                // For braking: if tilting opposite but not enough to trigger change
-                // Braking if user is tilting in the opposite direction
                 if (
                     (direction === 'left' && dx > tiltSensitivity / 2) ||
                     (direction === 'right' && dx < -tiltSensitivity / 2) ||
@@ -569,15 +509,11 @@
                 }
             }
         }
-
-        // --- iOS Tap/Neutral Point mode removed ---
-
         // Joystick input handling
         joystickKnob.addEventListener('touchstart', function (e) {
             e.preventDefault();
             joyActive = true;
         }, { passive: false });
-
         window.addEventListener('touchmove', function (e) {
             if (!joyActive) return;
             e.preventDefault();
@@ -585,7 +521,6 @@
             const touch = e.touches[0];
             let x = touch.clientX - rect.left;
             let y = touch.clientY - rect.top;
-            // Limit knob within joystick circle
             let dx = x - 46;
             let dy = y - 46;
             let dist = Math.sqrt(dx * dx + dy * dy);
@@ -599,7 +534,6 @@
             joystickKnob.style.left = (x - 23) + "px";
             joystickKnob.style.top = (y - 23) + "px";
             joyPos = { x, y };
-            // Determine direction (4-way)
             let prevJoyDir = joyDir;
             if (Math.abs(dx) > Math.abs(dy)) {
                 if (dx > 10) joyDir = 'right';
@@ -610,20 +544,15 @@
                 else if (dy < -10) joyDir = 'up';
                 else joyDir = null;
             }
-            // Speed: 1 for normal, >1 for accelerate, <1 for braking
             joySpeed = Math.min(Math.max(dist / maxDist, 0.2), 1.5);
-            // Braking: if moving opposite
             if (joyDir && isOppositeDirection(joyDir, direction)) {
                 joySpeed = 0.7 - (dist / maxDist) * 0.5;
             }
-            // Set direction and speed for game logic
             if (joyDir && joyDir !== direction && !isOppositeDirection(joyDir, direction)) {
                 nextDirection = joyDir;
             }
             holdingKey = !!joyDir;
             heldDirection = joyDir;
-
-            // Haptic feedback on acceleration/braking
             if (joySpeed > 1.2 && !joyVibAccel) {
                 hapticFeedback(35);
                 joyVibAccel = true;
@@ -634,7 +563,6 @@
                 setTimeout(() => { joyVibBrake = false; }, 300);
             }
         }, { passive: false });
-
         window.addEventListener('touchend', function (e) {
             joyActive = false;
             joystickKnob.style.left = "23px";
@@ -647,22 +575,16 @@
             joyVibAccel = false;
             joyVibBrake = false;
         }, { passive: false });
-
         // --- Main Game Loop ---
         function draw() {
             let targetNormalSpeed = getNormalSpeed(score);
-
-            // Joystick speed logic
-            if (isTouchDevice() && joyActive) {
-                let targetNormalSpeed = getNormalSpeed(score);
+            if (isTouchDevice() && joyActive && !tiltMode) {
                 if (joyDir && heldDirection === direction) {
                     currentSpeed = Math.max(targetNormalSpeed * (1 - (joySpeed - 1)), 18);
                 } else if (joyDir && isOppositeDirection(joyDir, direction)) {
                     currentSpeed = Math.min(targetNormalSpeed / Math.max(joySpeed, 0.6), 220);
                 }
             }
-
-            // Anim state
             if (holdingKey && heldDirection === direction && currentSpeed < targetNormalSpeed - 3) {
                 animState = "accelerating";
             } else if (holdingKey && isOppositeDirection(heldDirection, direction) && currentSpeed > targetNormalSpeed + 3) {
@@ -670,8 +592,6 @@
             } else {
                 animState = "normal";
             }
-
-            // Speed control
             if (holdingKey && heldDirection === direction) {
                 currentSpeed -= accelerationStep;
                 if (currentSpeed < minSpeed) currentSpeed = minSpeed;
@@ -687,10 +607,7 @@
                     if (currentSpeed > targetNormalSpeed) currentSpeed = targetNormalSpeed;
                 }
             }
-
             direction = nextDirection;
-
-            // Move snake
             const head = { ...snake[0] };
             switch (direction) {
                 case 'up': head.y--; break;
@@ -699,29 +616,19 @@
                 case 'right': head.x++; break;
             }
             snake.unshift(head);
-
-            // Collision checks
             if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
-                gameOver();
-                return;
+                gameOver(); return;
             }
             if (snake.slice(1).some(segment => segment.x === head.x && segment.y === head.y)) {
-                gameOver();
-                return;
+                gameOver(); return;
             }
-
-            // Eat food
             if (head.x === food.x && head.y === food.y) {
                 score++;
                 food = getNewFoodPosition();
             } else {
                 snake.pop();
             }
-
-            // Draw everything
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Draw food
             ctx.save();
             ctx.shadowColor = '#ef4444aa';
             ctx.shadowBlur = 7;
@@ -731,19 +638,13 @@
             ctx.fillStyle = '#fb7185';
             ctx.fill();
             ctx.restore();
-
-            // Snake animation parameters
             animTick++;
             if (animTick > 10000) animTick = 0;
-
-            // Draw snake
             for (let i = 0; i < snake.length; i++) {
                 ctx.save();
                 if (i === 0) {
-                    // HEAD ANIMATION
                     let x = snake[i].x * gridSize + gridSize / 2;
                     let y = snake[i].y * gridSize + gridSize / 2;
-
                     if (animState === "accelerating") {
                         drawSpeedLines(ctx, x, y, direction, animTick);
                         drawPointyHead(ctx, x, y, direction);
@@ -768,18 +669,10 @@
                 }
                 ctx.restore();
             }
-
-            // Draw Score
             scoreBar.innerHTML = `Score: <span style="color:#06b6d4">${score}</span>`;
-
-            // Draw Speed Bar (OUTSIDE canvas)
             updateSpeedBar(animState, currentSpeed, getNormalSpeed(score), minSpeed, maxSlowSpeed);
-
-            // Continue game loop
             animationFrameId = setTimeout(() => requestAnimationFrame(draw), currentSpeed);
         }
-
-        // --- Drawing Helpers ---
         function drawPointyHead(ctx, x, y, direction) {
             ctx.save();
             ctx.shadowColor = "#06b6d4";
@@ -812,7 +705,6 @@
             ctx.stroke();
             ctx.restore();
         }
-
         function drawSpeedLines(ctx, x, y, direction, tick) {
             ctx.save();
             ctx.globalAlpha = 0.42;
@@ -847,7 +739,6 @@
             ctx.globalAlpha = 1;
             ctx.restore();
         }
-
         function drawPuffyHead(ctx, x, y) {
             ctx.save();
             ctx.shadowColor = "#fb7185";
@@ -859,7 +750,6 @@
             ctx.fill();
             ctx.restore();
         }
-
         function drawBrakeWave(ctx, x, y, tick) {
             ctx.save();
             let baseR = gridSize * 1.1;
@@ -875,7 +765,6 @@
             ctx.globalAlpha = 1;
             ctx.restore();
         }
-
         function updateSpeedBar(animState, currentSpeed, normalSpeed, minSpeed, maxSlowSpeed) {
             let val = 0;
             if (currentSpeed > normalSpeed) {
@@ -899,7 +788,6 @@
                 ? `0 0 16px 3px ${animState === "accelerating" ? "#06b6d4" : "#f43f5e"}99`
                 : "none";
         }
-
         function getNewFoodPosition() {
             let pos;
             while (true) {
@@ -912,7 +800,6 @@
                 }
             }
         }
-
         function gameOver() {
             clearTimeout(animationFrameId);
             setTimeout(() => {
@@ -921,7 +808,6 @@
                 draw();
             }, 200);
         }
-
         function roundedRect(ctx, x, y, w, h, r) {
             ctx.beginPath();
             ctx.moveTo(x + r, y);
@@ -935,8 +821,7 @@
             ctx.quadraticCurveTo(x, y, x + r, y);
             ctx.closePath();
         }
-    </script>
-    <script>
+        // Service Worker registration for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('./service-worker.js');
