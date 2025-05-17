@@ -440,6 +440,10 @@
         let tileCount = 40, gridSize = 10, minSpeed = 25, maxSlowSpeed = 200;
         let snake, direction, nextDirection, food, score, holdingKey = false, heldDirection = null;
         let currentSpeed = 100, accelerationStep = KEYBOARD_ACCEL, decelerationStep = 6, animationFrameId = null, animState = "normal", animTick = 0, tiltMode = false, lastTiltDir = null;
+        // Animation variables for smooth movement
+        let animProgress = 1;
+        let moveDuration = 1;
+        let lastFrameTime = 0;
 
         // Responsive canvas sizing
         function adjustGridForScreen() {
@@ -473,7 +477,8 @@
             );
         }
         function resetGameVars() {
-            snake = [{ x: 10, y: 10 }];
+            // Each segment tracks x, y, realX, realY, prevX, prevY
+            snake = [{ x: 10, y: 10, realX: 10, realY: 10, prevX: 10, prevY: 10 }];
             direction = 'right';
             nextDirection = 'right';
             food = getNewFoodPosition();
@@ -484,6 +489,7 @@
             animState = "normal";
             animTick = 0;
             lastTiltDir = null;
+            animProgress = 1;
         }
 
         // Control mode logic
@@ -541,7 +547,8 @@
             isPaused = false; hidePausedOverlay();
             gameStarted = true;
             accelerationStep = KEYBOARD_ACCEL;
-            draw();
+            lastFrameTime = performance.now();
+            requestAnimationFrame(gameLoop);
         }
         function startGameWithDpad() {
             tiltMode = false; useTilt = false; useDpad = true;
@@ -552,7 +559,8 @@
             isPaused = false; hidePausedOverlay();
             gameStarted = true;
             accelerationStep = DPAD_ACCEL;
-            draw();
+            lastFrameTime = performance.now();
+            requestAnimationFrame(gameLoop);
         }
         function startGameWithKeyboard() {
             resetGameVars();
@@ -563,7 +571,8 @@
             isPaused = false; hidePausedOverlay();
             gameStarted = true;
             accelerationStep = KEYBOARD_ACCEL;
-            draw();
+            lastFrameTime = performance.now();
+            requestAnimationFrame(gameLoop);
         }
 
         // --- D-Pad logic ---
@@ -754,8 +763,14 @@
         });
 
         // --- Main Game Loop ---
-        function draw() {
-            if (isPaused) return;
+        // --- Smooth Animation Game Loop ---
+        let animationFrameId2 = null;
+        function gameLoop(now) {
+            let delta = now - lastFrameTime;
+            lastFrameTime = now;
+            if (isPaused) { requestAnimationFrame(gameLoop); return; }
+
+            // Speed/acceleration logic
             let targetNormalSpeed = getNormalSpeed(score);
             if (holdingKey && heldDirection === direction && currentSpeed < targetNormalSpeed - 3) animState = "accelerating";
             else if (holdingKey && isOppositeDirection(heldDirection, direction) && currentSpeed > targetNormalSpeed + 3) animState = "braking";
@@ -775,20 +790,30 @@
                     if (currentSpeed > targetNormalSpeed) currentSpeed = targetNormalSpeed;
                 }
             }
-            direction = nextDirection;
-            const head = { ...snake[0] };
-            switch (direction) {
-                case 'up': head.y--; break;
-                case 'down': head.y++; break;
-                case 'left': head.x--; break;
-                case 'right': head.x++; break;
+            // Calculate per-move duration from currentSpeed (ms per move)
+            let moveStep = delta / currentSpeed;
+            animProgress += moveStep;
+            if (animProgress >= 1) {
+                // Complete grid move
+                animProgress = 0;
+                moveSnakeGrid();
             }
-            snake.unshift(head);
-            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) { gameOver(); return; }
-            if (snake.slice(1).some(segment => segment.x === head.x && segment.y === head.y)) { gameOver(); return; }
-            if (head.x === food.x && head.y === food.y) { score++; food = getNewFoodPosition(); }
-            else snake.pop();
+
+            // Interpolate positions
+            for (let i = snake.length - 1; i >= 0; i--) {
+                let seg = snake[i];
+                if (i === 0) { // head
+                    seg.realX = seg.prevX + (seg.x - seg.prevX) * animProgress;
+                    seg.realY = seg.prevY + (seg.y - seg.prevY) * animProgress;
+                } else {
+                    seg.realX = snake[i - 1].realX;
+                    seg.realY = snake[i - 1].realY;
+                }
+            }
+
+            // DRAW
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw food
             ctx.save();
             ctx.shadowColor = '#ef4444aa'; ctx.shadowBlur = 7;
             ctx.beginPath();
@@ -801,9 +826,9 @@
             if (animTick > 10000) animTick = 0;
             for (let i = 0; i < snake.length; i++) {
                 ctx.save();
+                let x = snake[i].realX * gridSize + gridSize / 2;
+                let y = snake[i].realY * gridSize + gridSize / 2;
                 if (i === 0) {
-                    let x = snake[i].x * gridSize + gridSize / 2;
-                    let y = snake[i].y * gridSize + gridSize / 2;
                     if (animState === "accelerating") { drawSpeedLines(ctx, x, y, direction, animTick); drawPointyHead(ctx, x, y, direction); }
                     else if (animState === "braking") { drawBrakeWave(ctx, x, y, animTick); drawPuffyHead(ctx, x, y); }
                     else { ctx.shadowColor = "#22d3ee"; ctx.shadowBlur = 6; ctx.fillStyle = "#0ea5e9"; roundedRect(ctx, x - gridSize / 2, y - gridSize / 2, gridSize, gridSize, 3.5); ctx.fill(); }
@@ -811,16 +836,53 @@
                     ctx.shadowColor = "#a5f3fc66";
                     ctx.shadowBlur = 6;
                     ctx.fillStyle = "#38bdf8";
-                    const x = snake[i].x * gridSize;
-                    const y = snake[i].y * gridSize;
-                    roundedRect(ctx, x, y, gridSize, gridSize, 3);
+                    roundedRect(ctx, x - gridSize / 2, y - gridSize / 2, gridSize, gridSize, 3);
                     ctx.fill();
                 }
                 ctx.restore();
             }
             scoreBar.innerHTML = `Score: <span style="color:#06b6d4">${score}</span>`;
             updateSpeedBar(animState, currentSpeed, getNormalSpeed(score), minSpeed, maxSlowSpeed);
-            animationFrameId = setTimeout(() => requestAnimationFrame(draw), currentSpeed);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Move snake on the grid, update prevX/prevY for smooth anim
+        function moveSnakeGrid() {
+            // Move body segments
+            for (let i = snake.length - 1; i > 0; i--) {
+                snake[i].prevX = snake[i].x;
+                snake[i].prevY = snake[i].y;
+                snake[i].x = snake[i - 1].x;
+                snake[i].y = snake[i - 1].y;
+            }
+            // Move head
+            let head = snake[0];
+            head.prevX = head.x;
+            head.prevY = head.y;
+            direction = nextDirection;
+            switch (direction) {
+                case 'up': head.y--; break;
+                case 'down': head.y++; break;
+                case 'left': head.x--; break;
+                case 'right': head.x++; break;
+            }
+            // COLLISION
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount
+                || snake.slice(1).some(seg => seg.x === head.x && seg.y === head.y)) {
+                gameOver(); return;
+            }
+            // FOOD
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                let tail = snake[snake.length - 1];
+                snake.push({
+                    x: tail.x, y: tail.y,
+                    prevX: tail.x, prevY: tail.y,
+                    realX: tail.realX, realY: tail.realY
+                });
+                food = getNewFoodPosition();
+            }
         }
         function drawPointyHead(ctx, x, y, direction) {
             ctx.save(); ctx.shadowColor = "#06b6d4"; ctx.shadowBlur = 22;
@@ -886,7 +948,8 @@
             setTimeout(() => {
                 alert(`Game Over! Your score: ${score}`);
                 resetGameVars();
-                draw();
+                lastFrameTime = performance.now();
+                requestAnimationFrame(gameLoop);
             }, 200);
         }
         function roundedRect(ctx, x, y, w, h, r) {
