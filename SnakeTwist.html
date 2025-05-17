@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=400, initial-scale=1.0" />
+        <title>Modern Snake Game (Tap or Tilt)</title>
+        <style>
+            body {
+                background: linear-gradient(135deg, #e9e9f2 0%, #f6faff 100%);
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 0;
+            }
+            .game-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            #score-bar {
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 1.3rem;
+                font-weight: 600;
+                color: #334155;
+                margin-bottom: 10px;
+                letter-spacing: 0.5px;
+                background: #fff;
+                padding: 8px 30px;
+                border-radius: 22px;
+                box-shadow: 0 2px 8px #93c5fd33;
+                user-select: none;
+            }
+            #speed-bar-container {
+                width: 410px;
+                margin-bottom: 16px;
+                margin-top: 2px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                font-family: "Segoe UI", Arial, sans-serif;
+            }
+            #speed-bar-labels {
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                color: #64748b;
+                padding: 0 6px;
+                box-sizing: border-box;
+            }
+            #speed-bar {
+                width: 100%;
+                height: 16px;
+                background: #f3f4f6;
+                border-radius: 8px;
+                border: 2px solid #cbd5e1;
+                box-shadow: 0 2px 8px #bae6fd66;
+                position: relative;
+                overflow: hidden;
+                margin-bottom: 2px;
+                margin-top: 3px;
+            }
+            #speed-bar-indicator {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                height: 100%;
+                border-radius: 8px;
+                transition:
+                    left 0.08s cubic-bezier(0.4, 2, 0.7, 1),
+                    width 0.1s cubic-bezier(0.4, 2, 0.7, 1),
+                    background 0.2s;
+            }
+            #control-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.75);
+                z-index: 20;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            #control-modal > div {
+                background: #fff;
+                padding: 30px 25px 20px 25px;
+                border-radius: 20px;
+                text-align: center;
+                min-width: 250px;
+                max-width: 94vw;
+            }
+            #control-modal button {
+                font-size: 1em;
+                padding: 10px 30px;
+                margin: 8px 0;
+                border-radius: 10px;
+                border: none;
+                background: #38bdf8;
+                color: #fff;
+                cursor: pointer;
+                transition: background 0.16s;
+            }
+            #control-modal button:active {
+                background: #0ea5e9;
+            }
+            #control-modal button:disabled {
+                background: #ddd !important;
+                color: #aaa !important;
+                cursor: not-allowed;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="game-container">
+            <div id="score-bar">Score: 0</div>
+            <div id="speed-bar-container">
+                <div id="speed-bar-labels">
+                    <span style="color: #f43f5e">Braking</span>
+                    <span style="color: #64748b">Normal</span>
+                    <span style="color: #06b6d4">Accelerating</span>
+                </div>
+                <div id="speed-bar">
+                    <div id="speed-bar-indicator"></div>
+                </div>
+            </div>
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+        </div>
+
+        <!-- Control Modal -->
+        <div id="control-modal">
+            <div>
+                <h2 style="margin: 0 0 18px; font-size: 1.5em">
+                    Choose Control Mode
+                </h2>
+                <button id="tap-mode-btn">Tap/Arrow Keys</button><br />
+                <button id="tilt-mode-btn">Tilt (iPhone)</button>
+                <div id="tilt-steps" style="display: none; margin-top: 18px">
+                    <div id="tilt-permission-step">
+                        <button id="tilt-perm-btn">Enable Tilt</button>
+                    </div>
+                    <div id="tilt-calibrate-step" style="display: none">
+                        <div style="margin-bottom: 7px">
+                            Hold your phone in comfortable play position.<br />
+                            Then tap Calibrate.
+                        </div>
+                        <button id="calibrate-btn">Calibrate</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            // Device/Motion Support Detection and Control Modal
+            function tiltIsSupported() {
+                return (
+                    typeof DeviceOrientationEvent !== "undefined" &&
+                    typeof DeviceOrientationEvent.requestPermission ===
+                        "function"
+                );
+            }
+            let controlModal = document.getElementById("control-modal");
+            let tapModeBtn = document.getElementById("tap-mode-btn");
+            let tiltModeBtn = document.getElementById("tilt-mode-btn");
+            let tiltSteps = document.getElementById("tilt-steps");
+            let tiltPermBtn = document.getElementById("tilt-perm-btn");
+            let tiltCalibrateStep = document.getElementById(
+                "tilt-calibrate-step",
+            );
+            let calibrateBtn = document.getElementById("calibrate-btn");
+            let useTilt = false,
+                tiltReady = false;
+            let baseGamma = 0,
+                baseBeta = 0;
+            let tiltThreshold = 12; // degree threshold to detect direction
+            let gameStarted = false;
+
+            // Always show modal at start, allow both modes (if supported)
+            tapModeBtn.onclick = () => {
+                controlModal.style.display = "none";
+                setTimeout(() => {
+                    startGameWithTap();
+                }, 350);
+            };
+            tiltModeBtn.onclick = () => {
+                if (tiltIsSupported()) {
+                    tiltSteps.style.display = "block";
+                    tiltPermBtn.onclick = requestTiltPermission;
+                }
+            };
+            // Gray out Tilt if not supported
+            if (!tiltIsSupported()) {
+                tiltModeBtn.disabled = true;
+                tiltModeBtn.innerText = "Tilt (Not Supported)";
+            }
+
+            function requestTiltPermission() {
+                if (
+                    typeof DeviceOrientationEvent !== "undefined" &&
+                    typeof DeviceOrientationEvent.requestPermission ===
+                        "function"
+                ) {
+                    DeviceOrientationEvent.requestPermission()
+                        .then((response) => {
+                            if (response === "granted") {
+                                tiltPermBtn.disabled = true;
+                                tiltCalibrateStep.style.display = "block";
+                                calibrateBtn.onclick = calibrateBaseOrientation;
+                            } else {
+                                alert("Permission denied.");
+                            }
+                        })
+                        .catch((err) => {
+                            alert("Permission error: " + err);
+                        });
+                } else {
+                    alert("Tilt not supported on this browser.");
+                }
+            }
+
+            function calibrateBaseOrientation() {
+                function onceCalib(e) {
+                    baseGamma = e.gamma || 0; // left-right
+                    baseBeta = e.beta || 0; // front-back
+                    window.removeEventListener("deviceorientation", onceCalib);
+                    useTilt = true;
+                    tiltReady = true;
+                    controlModal.style.display = "none";
+                    setTimeout(() => {
+                        startGameWithTilt();
+                    }, 350);
+                }
+                window.addEventListener("deviceorientation", onceCalib);
+            }
+
+            // Main Game Variables and Logic (including acceleration/dec)
+            const canvas = document.getElementById("gameCanvas");
+            const ctx = canvas.getContext("2d");
+            const scoreBar = document.getElementById("score-bar");
+            const speedBar = document.getElementById("speed-bar");
+            const speedBarIndicator = document.getElementById(
+                "speed-bar-indicator",
+            );
+
+            const gridSize = 10;
+            const tileCount = 40;
+            let snake, direction, nextDirection, food, score;
+            let holdingKey = false;
+            let heldDirection = null;
+            let minSpeed = 25;
+            let maxSlowSpeed = 200;
+            let currentSpeed = 100;
+            let accelerationStep = 7;
+            let decelerationStep = 6;
+            let animationFrameId = null;
+            let animState = "normal";
+            let animTick = 0;
+            let tiltMode = false;
+            let lastTiltDir = null;
+
+            function getNormalSpeed(score) {
+                return Math.max(100 - Math.floor(score / 5) * 5, 45);
+            }
+
+            function isOppositeDirection(dir1, dir2) {
+                return (
+                    (dir1 === "left" && dir2 === "right") ||
+                    (dir1 === "right" && dir2 === "left") ||
+                    (dir1 === "up" && dir2 === "down") ||
+                    (dir1 === "down" && dir2 === "up")
+                );
+            }
+
+            function resetGameVars() {
+                snake = [{ x: 10, y: 10 }];
+                direction = "right";
+                nextDirection = "right";
+                food = getNewFoodPosition();
+                score = 0;
+                holdingKey = false;
+                heldDirection = null;
+                currentSpeed = getNormalSpeed(0);
+                animState = "normal";
+                animTick = 0;
+                lastTiltDir = null;
+            }
+
+            function startGameWithTap() {
+                tiltMode = false;
+                resetGameVars();
+                if (!gameStarted) {
+                    document.addEventListener("keydown", tapKeydownHandler);
+                    document.addEventListener("keyup", tapKeyupHandler);
+                }
+                gameStarted = true;
+                draw();
+            }
+
+            function startGameWithTilt() {
+                tiltMode = true;
+                resetGameVars();
+                window.addEventListener("deviceorientation", deviceTiltHandler);
+                gameStarted = true;
+                draw();
+            }
+
+            function tapKeydownHandler(e) {
+                let pressed = false;
+                switch (e.key) {
+                    case "ArrowUp":
+                    case "w":
+                    case "W":
+                        if (direction !== "down") {
+                            nextDirection = "up";
+                            pressed = true;
+                        }
+                        break;
+                    case "ArrowDown":
+                    case "s":
+                    case "S":
+                        if (direction !== "up") {
+                            nextDirection = "down";
+                            pressed = true;
+                        }
+                        break;
+                    case "ArrowLeft":
+                    case "a":
+                    case "A":
+                        if (direction !== "right") {
+                            nextDirection = "left";
+                            pressed = true;
+                        }
+                        break;
+                    case "ArrowRight":
+                    case "d":
+                    case "D":
+                        if (direction !== "left") {
+                            nextDirection = "right";
+                            pressed = true;
+                        }
+                        break;
+                }
+                if (pressed) {
+                    holdingKey = true;
+                    heldDirection = nextDirection;
+                } else if (
+                    (e.key === "ArrowUp" && direction === "down") ||
+                    (e.key === "w" && direction === "down") ||
+                    (e.key === "ArrowDown" && direction === "up") ||
+                    (e.key === "s" && direction === "up") ||
+                    (e.key === "ArrowLeft" && direction === "right") ||
+                    (e.key === "a" && direction === "right") ||
+                    (e.key === "ArrowRight" && direction === "left") ||
+                    (e.key === "d" && direction === "left")
+                ) {
+                    holdingKey = true;
+                    heldDirection = {
+                        ArrowUp: "up",
+                        w: "up",
+                        W: "up",
+                        ArrowDown: "down",
+                        s: "down",
+                        S: "down",
+                        ArrowLeft: "left",
+                        a: "left",
+                        A: "left",
+                        ArrowRight: "right",
+                        d: "right",
+                        D: "right",
+                    }[e.key];
+                }
+            }
+
+            function tapKeyupHandler(e) {
+                if (
+                    (e.key === "ArrowUp" && heldDirection === "up") ||
+                    ((e.key === "w" || e.key === "W") &&
+                        heldDirection === "up") ||
+                    (e.key === "ArrowDown" && heldDirection === "down") ||
+                    ((e.key === "s" || e.key === "S") &&
+                        heldDirection === "down") ||
+                    (e.key === "ArrowLeft" && heldDirection === "left") ||
+                    ((e.key === "a" || e.key === "A") &&
+                        heldDirection === "left") ||
+                    (e.key === "ArrowRight" && heldDirection === "right") ||
+                    ((e.key === "d" || e.key === "D") &&
+                        heldDirection === "right")
+                ) {
+                    holdingKey = false;
+                    heldDirection = null;
+                }
+            }
+
+            function deviceTiltHandler(e) {
+                if (!tiltMode || !tiltReady) return;
+
+                let dx = (e.gamma || 0) - baseGamma; // left-right
+                let dy = (e.beta || 0) - baseBeta; // up/down
+
+                let newDir = null;
+                // Horizontal tilt
+                if (
+                    dx > tiltThreshold &&
+                    direction !== "left" &&
+                    lastTiltDir !== "right"
+                ) {
+                    newDir = "right";
+                } else if (
+                    dx < -tiltThreshold &&
+                    direction !== "right" &&
+                    lastTiltDir !== "left"
+                ) {
+                    newDir = "left";
+                }
+                // Vertical tilt
+                else if (
+                    dy > tiltThreshold &&
+                    direction !== "up" &&
+                    lastTiltDir !== "down"
+                ) {
+                    newDir = "down";
+                } else if (
+                    dy < -tiltThreshold &&
+                    direction !== "down" &&
+                    lastTiltDir !== "up"
+                ) {
+                    newDir = "up";
+                }
+                if (newDir) {
+                    nextDirection = newDir;
+                    holdingKey = true;
+                    heldDirection = newDir;
+                    lastTiltDir = newDir;
+                } else {
+                    // For braking: if tilting opposite but not enough to trigger change
+                    if (
+                        Math.abs(dx) < tiltThreshold &&
+                        Math.abs(dy) < tiltThreshold
+                    ) {
+                        holdingKey = false;
+                        heldDirection = null;
+                        lastTiltDir = null;
+                    }
+                }
+            }
+
+            function draw() {
+                let targetNormalSpeed = getNormalSpeed(score);
+
+                // Anim state
+                if (
+                    holdingKey &&
+                    heldDirection === direction &&
+                    currentSpeed < targetNormalSpeed - 3
+                ) {
+                    animState = "accelerating";
+                } else if (
+                    holdingKey &&
+                    isOppositeDirection(heldDirection, direction) &&
+                    currentSpeed > targetNormalSpeed + 3
+                ) {
+                    animState = "braking";
+                } else {
+                    animState = "normal";
+                }
+
+                // Speed control
+                if (holdingKey && heldDirection === direction) {
+                    currentSpeed -= accelerationStep;
+                    if (currentSpeed < minSpeed) currentSpeed = minSpeed;
+                } else if (
+                    holdingKey &&
+                    isOppositeDirection(heldDirection, direction)
+                ) {
+                    currentSpeed += decelerationStep * 2;
+                    if (currentSpeed > maxSlowSpeed)
+                        currentSpeed = maxSlowSpeed;
+                } else {
+                    if (currentSpeed > targetNormalSpeed) {
+                        currentSpeed -= decelerationStep;
+                        if (currentSpeed < targetNormalSpeed)
+                            currentSpeed = targetNormalSpeed;
+                    } else if (currentSpeed < targetNormalSpeed) {
+                        currentSpeed += decelerationStep;
+                        if (currentSpeed > targetNormalSpeed)
+                            currentSpeed = targetNormalSpeed;
+                    }
+                }
+
+                direction = nextDirection;
+
+                // Move snake
+                const head = { ...snake[0] };
+                switch (direction) {
+                    case "up":
+                        head.y--;
+                        break;
+                    case "down":
+                        head.y++;
+                        break;
+                    case "left":
+                        head.x--;
+                        break;
+                    case "right":
+                        head.x++;
+                        break;
+                }
+                snake.unshift(head);
+
+                // Collision checks
+                if (
+                    head.x < 0 ||
+                    head.x >= tileCount ||
+                    head.y < 0 ||
+                    head.y >= tileCount
+                ) {
+                    gameOver();
+                    return;
+                }
+                if (
+                    snake
+                        .slice(1)
+                        .some(
+                            (segment) =>
+                                segment.x === head.x && segment.y === head.y,
+                        )
+                ) {
+                    gameOver();
+                    return;
+                }
+
+                // Eat food
+                if (head.x === food.x && head.y === food.y) {
+                    score++;
+                    food = getNewFoodPosition();
+                } else {
+                    snake.pop();
+                }
+
+                // Draw everything
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw food
+                ctx.save();
+                ctx.shadowColor = "#ef4444aa";
+                ctx.shadowBlur = 7;
+                ctx.beginPath();
+                ctx.arc(
+                    food.x * gridSize + gridSize / 2,
+                    food.y * gridSize + gridSize / 2,
+                    gridSize / 2 - 1,
+                    0,
+                    Math.PI * 2,
+                );
+                ctx.closePath();
+                ctx.fillStyle = "#fb7185";
+                ctx.fill();
+                ctx.restore();
+
+                // Snake animation parameters
+                animTick++;
+                if (animTick > 10000) animTick = 0;
+
+                // Draw snake
+                for (let i = 0; i < snake.length; i++) {
+                    ctx.save();
+                    if (i === 0) {
+                        // HEAD ANIMATION
+                        let x = snake[i].x * gridSize + gridSize / 2;
+                        let y = snake[i].y * gridSize + gridSize / 2;
+
+                        if (animState === "accelerating") {
+                            drawSpeedLines(ctx, x, y, direction, animTick);
+                            drawPointyHead(ctx, x, y, direction);
+                        } else if (animState === "braking") {
+                            drawBrakeWave(ctx, x, y, animTick);
+                            drawPuffyHead(ctx, x, y);
+                        } else {
+                            ctx.shadowColor = "#22d3ee";
+                            ctx.shadowBlur = 6;
+                            ctx.fillStyle = "#0ea5e9";
+                            roundedRect(
+                                ctx,
+                                x - gridSize / 2,
+                                y - gridSize / 2,
+                                gridSize,
+                                gridSize,
+                                3.5,
+                            );
+                            ctx.fill();
+                        }
+                    } else {
+                        ctx.shadowColor = "#a5f3fc66";
+                        ctx.shadowBlur = 6;
+                        ctx.fillStyle = "#38bdf8";
+                        const x = snake[i].x * gridSize;
+                        const y = snake[i].y * gridSize;
+                        roundedRect(ctx, x, y, gridSize, gridSize, 3);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+
+                // Draw Score
+                scoreBar.innerHTML = `Score: <span style="color:#06b6d4">${score}</span>`;
+
+                // Draw Speed Bar (OUTSIDE canvas)
+                updateSpeedBar(
+                    animState,
+                    currentSpeed,
+                    getNormalSpeed(score),
+                    minSpeed,
+                    maxSlowSpeed,
+                );
+
+                // Continue game loop
+                animationFrameId = setTimeout(
+                    () => requestAnimationFrame(draw),
+                    currentSpeed,
+                );
+            }
+
+            function drawPointyHead(ctx, x, y, direction) {
+                ctx.save();
+                ctx.shadowColor = "#06b6d4";
+                ctx.shadowBlur = 22;
+                ctx.fillStyle = "#0ea5e9";
+                ctx.strokeStyle = "#22d3ee";
+                ctx.lineWidth = 2;
+                let len = gridSize * 1.8,
+                    w = gridSize * 1.05;
+                let base = gridSize * 0.7;
+                ctx.beginPath();
+                if (direction === "right") {
+                    ctx.moveTo(x + len / 2, y);
+                    ctx.lineTo(x - base / 2, y - w / 2);
+                    ctx.lineTo(x - base / 2, y + w / 2);
+                } else if (direction === "left") {
+                    ctx.moveTo(x - len / 2, y);
+                    ctx.lineTo(x + base / 2, y - w / 2);
+                    ctx.lineTo(x + base / 2, y + w / 2);
+                } else if (direction === "up") {
+                    ctx.moveTo(x, y - len / 2);
+                    ctx.lineTo(x - w / 2, y + base / 2);
+                    ctx.lineTo(x + w / 2, y + base / 2);
+                } else if (direction === "down") {
+                    ctx.moveTo(x, y + len / 2);
+                    ctx.lineTo(x - w / 2, y - base / 2);
+                    ctx.lineTo(x + w / 2, y - base / 2);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function drawSpeedLines(ctx, x, y, direction, tick) {
+                ctx.save();
+                ctx.globalAlpha = 0.42;
+                ctx.strokeStyle = "#0ea5e9";
+                ctx.lineWidth = 2.7;
+                let spacing = 6,
+                    lines = 4;
+                let offset = Math.sin(tick * 0.25) * 2;
+                for (let i = 0; i < lines; i++) {
+                    let factor = i - (lines - 1) / 2;
+                    if (direction === "right") {
+                        ctx.beginPath();
+                        ctx.moveTo(x - 14, y + factor * spacing + offset);
+                        ctx.lineTo(x - 25, y + factor * spacing + offset);
+                        ctx.stroke();
+                    } else if (direction === "left") {
+                        ctx.beginPath();
+                        ctx.moveTo(x + 14, y + factor * spacing + offset);
+                        ctx.lineTo(x + 25, y + factor * spacing + offset);
+                        ctx.stroke();
+                    } else if (direction === "up") {
+                        ctx.beginPath();
+                        ctx.moveTo(x + factor * spacing + offset, y + 14);
+                        ctx.lineTo(x + factor * spacing + offset, y + 25);
+                        ctx.stroke();
+                    } else if (direction === "down") {
+                        ctx.beginPath();
+                        ctx.moveTo(x + factor * spacing + offset, y - 14);
+                        ctx.lineTo(x + factor * spacing + offset, y - 25);
+                        ctx.stroke();
+                    }
+                }
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+
+            function drawPuffyHead(ctx, x, y) {
+                ctx.save();
+                ctx.shadowColor = "#fb7185";
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = "#f59e42";
+                ctx.beginPath();
+                ctx.arc(
+                    x,
+                    y,
+                    gridSize * 0.87 + Math.sin(animTick * 0.2) * 2,
+                    0,
+                    Math.PI * 2,
+                );
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+
+            function drawBrakeWave(ctx, x, y, tick) {
+                ctx.save();
+                let baseR = gridSize * 1.1;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.globalAlpha = 0.21 - i * 0.05;
+                    ctx.strokeStyle = "#fb7185";
+                    ctx.lineWidth = 3 - i;
+                    let waveRadius =
+                        baseR +
+                        Math.abs(Math.sin(tick * 0.23 + i)) * (10 + i * 5);
+                    ctx.arc(x, y, waveRadius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+
+            function updateSpeedBar(
+                animState,
+                currentSpeed,
+                normalSpeed,
+                minSpeed,
+                maxSlowSpeed,
+            ) {
+                let val = 0;
+                if (currentSpeed > normalSpeed) {
+                    val = -Math.min(
+                        (currentSpeed - normalSpeed) /
+                            (maxSlowSpeed - normalSpeed),
+                        1,
+                    );
+                } else if (currentSpeed < normalSpeed) {
+                    val = Math.min(
+                        (normalSpeed - currentSpeed) / (normalSpeed - minSpeed),
+                        1,
+                    );
+                }
+                let bar = speedBar;
+                let barIndicator = speedBarIndicator;
+                let px = ((val + 1) / 2) * bar.offsetWidth;
+                let width =
+                    bar.offsetWidth * 0.09 +
+                    Math.abs(val) * bar.offsetWidth * 0.4;
+                px = Math.max(
+                    2,
+                    Math.min(bar.offsetWidth - width - 2, px - width / 2),
+                );
+                let bg = "#93c5fd";
+                if (animState === "accelerating")
+                    bg = "linear-gradient(90deg,#38bdf8 40%,#06b6d4 100%)";
+                if (animState === "braking")
+                    bg = "linear-gradient(90deg,#fb7185 10%,#f43f5e 80%)";
+                barIndicator.style.left = px + "px";
+                barIndicator.style.width = width + "px";
+                barIndicator.style.height = "100%";
+                barIndicator.style.background = bg;
+                barIndicator.style.boxShadow =
+                    animState !== "normal"
+                        ? `0 0 16px 3px ${animState === "accelerating" ? "#06b6d4" : "#f43f5e"}99`
+                        : "none";
+            }
+
+            function getNewFoodPosition() {
+                let pos;
+                while (true) {
+                    pos = {
+                        x: Math.floor(Math.random() * tileCount),
+                        y: Math.floor(Math.random() * tileCount),
+                    };
+                    if (
+                        !snake.some(
+                            (segment) =>
+                                segment.x === pos.x && segment.y === pos.y,
+                        )
+                    ) {
+                        return pos;
+                    }
+                }
+            }
+
+            function gameOver() {
+                clearTimeout(animationFrameId);
+                setTimeout(() => {
+                    alert(`Game Over! Your score: ${score}`);
+                    resetGameVars();
+                    if (tiltMode) {
+                        tiltReady = true;
+                        draw();
+                    } else {
+                        draw();
+                    }
+                }, 200);
+            }
+
+            function roundedRect(ctx, x, y, w, h, r) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+            }
+        </script>
+    </body>
+</html>
