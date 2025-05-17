@@ -161,6 +161,44 @@
             user-select: none;
         }
     </style>
+    <style>
+        #joystick-container {
+            position: fixed;
+            right: 18px;
+            bottom: 30px;
+            width: 92px;
+            height: 92px;
+            z-index: 99;
+            display: none;
+            /* will show on touch devices only */
+            touch-action: none;
+            user-select: none;
+        }
+
+        #joystick-bg {
+            width: 100%;
+            height: 100%;
+            background: rgba(148, 163, 184, 0.13);
+            border: 2.5px solid #38bdf8;
+            border-radius: 50%;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        #joystick-knob {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #38bdf8 70%, #06b6d4 100%);
+            border-radius: 50%;
+            position: absolute;
+            left: 23px;
+            top: 23px;
+            box-shadow: 0 2px 14px #38bdf866;
+            transition: left 0.05s, top 0.05s;
+            touch-action: none;
+        }
+    </style>
 </head>
 
 <body>
@@ -183,6 +221,11 @@
         </div>
         <div id="ios-tap-instructions"></div>
         <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <div id="joystick-container">
+        <div id="joystick-bg"></div>
+        <div id="joystick-knob"></div>
     </div>
 
     <!-- Control Modal -->
@@ -235,6 +278,25 @@
         let iosTouchMode = false;
         let iosNeutralTouch = null;
         let iosTouchActive = false;
+
+        // Joystick control variables
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickKnob = document.getElementById('joystick-knob');
+        const joystickBg = document.getElementById('joystick-bg');
+        let joyActive = false;
+        let joyPos = { x: 46, y: 46 }; // Center
+        let joyDir = null;
+        let joySpeed = 1;
+        let joyVibAccel = false, joyVibBrake = false;
+
+        function isTouchDevice() {
+            return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        }
+        if (isTouchDevice()) {
+            joystickContainer.style.display = 'block';
+            // Optionally hide tilt/tap controls on mobile
+            tiltSensitivityContainer.style.display = "none";
+        }
 
         // Always show modal at start
         tapModeBtn.onclick = () => {
@@ -588,9 +650,97 @@
             heldDirection = null;
         }
 
+        // Joystick input handling
+        joystickKnob.addEventListener('touchstart', function (e) {
+            e.preventDefault();
+            joyActive = true;
+        }, { passive: false });
+
+        window.addEventListener('touchmove', function (e) {
+            if (!joyActive) return;
+            e.preventDefault();
+            const rect = joystickContainer.getBoundingClientRect();
+            const touch = e.touches[0];
+            let x = touch.clientX - rect.left;
+            let y = touch.clientY - rect.top;
+            // Limit knob within joystick circle
+            let dx = x - 46;
+            let dy = y - 46;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            let maxDist = 38;
+            if (dist > maxDist) {
+                dx = dx * maxDist / dist;
+                dy = dy * maxDist / dist;
+                x = 46 + dx;
+                y = 46 + dy;
+            }
+            joystickKnob.style.left = (x - 23) + "px";
+            joystickKnob.style.top = (y - 23) + "px";
+            joyPos = { x, y };
+            // Determine direction (4-way)
+            let prevJoyDir = joyDir;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > 10) joyDir = 'right';
+                else if (dx < -10) joyDir = 'left';
+                else joyDir = null;
+            } else {
+                if (dy > 10) joyDir = 'down';
+                else if (dy < -10) joyDir = 'up';
+                else joyDir = null;
+            }
+            // Speed: 1 for normal, >1 for accelerate, <1 for braking
+            joySpeed = Math.min(Math.max(dist / maxDist, 0.2), 1.5);
+            // Braking: if moving opposite
+            if (joyDir && isOppositeDirection(joyDir, direction)) {
+                joySpeed = 0.7 - (dist / maxDist) * 0.5;
+            }
+            // Set direction and speed for game logic
+            if (joyDir && joyDir !== direction && !isOppositeDirection(joyDir, direction)) {
+                nextDirection = joyDir;
+            }
+            holdingKey = !!joyDir;
+            heldDirection = joyDir;
+
+            // Haptic feedback on acceleration/braking
+            if (window.navigator && navigator.vibrate) {
+                if (joySpeed > 1.2 && !joyVibAccel) {
+                    navigator.vibrate(35);
+                    joyVibAccel = true;
+                    setTimeout(() => { joyVibAccel = false; }, 250);
+                } else if (joySpeed < 0.8 && !joyVibBrake) {
+                    navigator.vibrate([15, 25, 15]);
+                    joyVibBrake = true;
+                    setTimeout(() => { joyVibBrake = false; }, 300);
+                }
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', function (e) {
+            joyActive = false;
+            joystickKnob.style.left = "23px";
+            joystickKnob.style.top = "23px";
+            joyPos = { x: 46, y: 46 };
+            joyDir = null;
+            holdingKey = false;
+            heldDirection = null;
+            joySpeed = 1;
+            joyVibAccel = false;
+            joyVibBrake = false;
+        }, { passive: false });
+
         // --- Main Game Loop ---
         function draw() {
             let targetNormalSpeed = getNormalSpeed(score);
+
+            // Joystick speed logic
+            if (isTouchDevice() && joyActive) {
+                let targetNormalSpeed = getNormalSpeed(score);
+                if (joyDir && heldDirection === direction) {
+                    currentSpeed = Math.max(targetNormalSpeed * (1 - (joySpeed - 1)), 18);
+                } else if (joyDir && isOppositeDirection(joyDir, direction)) {
+                    currentSpeed = Math.min(targetNormalSpeed / Math.max(joySpeed, 0.6), 220);
+                }
+            }
 
             // Anim state
             if (holdingKey && heldDirection === direction && currentSpeed < targetNormalSpeed - 3) {
