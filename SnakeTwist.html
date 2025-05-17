@@ -26,6 +26,61 @@
             align-items: center;
         }
 
+        #pause-btn {
+            position: fixed;
+            top: 16px;
+            right: 22px;
+            z-index: 201;
+            background: #fff;
+            border: 2px solid #38bdf8;
+            color: #0ea5e9;
+            border-radius: 12px;
+            font-size: 1.3em;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px #38bdf833;
+            transition: background 0.14s, box-shadow 0.14s;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #pause-btn:active {
+            background: #bae6fd;
+        }
+
+        #pause-btn[hidden] {
+            display: none;
+        }
+
+        #paused-overlay {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 2002;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #paused-overlay-inner {
+            background: #fff;
+            padding: 40px 32px 34px 32px;
+            border-radius: 24px;
+            font-size: 2em;
+            color: #0ea5e9;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            box-shadow: 0 6px 36px #38bdf833;
+            text-align: center;
+            min-width: 220px;
+            max-width: 80vw;
+        }
+
         #score-bar {
             font-family: 'Segoe UI', Arial, sans-serif;
             font-size: 1.3rem;
@@ -189,6 +244,14 @@
 </head>
 
 <body>
+    <button id="pause-btn" title="Pause/Resume" hidden>⏸️</button>
+    <div id="paused-overlay">
+        <div id="paused-overlay-inner">
+            <div style="font-size:1.5em;margin-bottom:16px;">⏸️ Game Paused</div>
+            <button onclick="resumeGame()"
+                style="font-size:1em;padding:10px 32px;border-radius:10px;background:#38bdf8;color:#fff;border:none;cursor:pointer;">Resume</button>
+        </div>
+    </div>
     <input type="checkbox" id="haptic-switch" switch style="display:none">
     <div class="game-container">
         <div id="score-bar">Score: 0</div>
@@ -264,6 +327,9 @@
                 triggerHapticFallback();
             }
         }
+        // Swipe thresholds
+        const THRESHOLD_TURN = 20;
+        const THRESHOLD_ACCEL = 40;
         // --- Device and UI Elements ---
         function tiltIsSupported() {
             return typeof DeviceOrientationEvent !== "undefined" &&
@@ -279,6 +345,9 @@
         let tiltSensitivityContainer = document.getElementById("tilt-sensitivity-container");
         let tiltSensitivityBar = document.getElementById("tilt-sensitivity-bar");
         let tiltSensitivityValue = document.getElementById("tilt-sensitivity-value");
+        let pauseBtn = document.getElementById("pause-btn");
+        let pausedOverlay = document.getElementById("paused-overlay");
+        let pausedOverlayInner = document.getElementById("paused-overlay-inner");
         // --- Game State ---
         let useTilt = false, tiltReady = false;
         let tiltSensitivity = 12;
@@ -286,7 +355,7 @@
         let tiltGammaAvg = 0, tiltBetaAvg = 0;
         let smoothingFactor = 0.25;
         let gameStarted = false;
-
+        let isPaused = false;
         // --- Swipe Hint Overlay for Mobile ---
         const swipeHintOverlay = document.getElementById('swipe-hint-overlay');
         function showSwipeHint() {
@@ -302,7 +371,6 @@
                 }, 800);
             }, 1750);
         }
-
         // --- Control Modal Selection Logic ---
         tapModeBtn.onclick = function () {
             controlModal.style.display = "none";
@@ -324,14 +392,12 @@
                     }
                 });
             } else {
-                // Non-iOS: proceed immediately
                 tiltCalibrateStep.style.display = "block";
                 tiltPermBtn.disabled = true;
                 tiltPermBtn.textContent = "Permission Granted!";
             }
         };
         calibrateBtn.onclick = function () {
-            // Read current tilt as "base"
             window.addEventListener("deviceorientation", function once(e) {
                 baseGamma = e.gamma || 0;
                 baseBeta = e.beta || 0;
@@ -414,6 +480,7 @@
             tiltMode = false;
             resetGameVars();
             tiltSensitivityContainer.style.display = "none";
+            pauseBtn.hidden = false;
             if (!gameStarted) {
                 document.addEventListener('keydown', tapKeydownHandler);
                 document.addEventListener('keyup', tapKeyupHandler);
@@ -424,6 +491,8 @@
             } else {
                 disableSwipeControls();
             }
+            isPaused = false;
+            hidePausedOverlay();
             gameStarted = true;
             draw();
         }
@@ -431,7 +500,10 @@
             tiltMode = true;
             resetGameVars();
             tiltSensitivityContainer.style.display = "flex";
+            pauseBtn.hidden = false;
             window.addEventListener('deviceorientation', deviceTiltHandler);
+            isPaused = false;
+            hidePausedOverlay();
             gameStarted = true;
             draw();
         }
@@ -458,6 +530,9 @@
                     if (direction !== 'left') {
                         nextDirection = 'right'; pressed = true;
                     }
+                    break;
+                case ' ':
+                    togglePause();
                     break;
             }
             if (pressed) {
@@ -539,9 +614,9 @@
         // --- EDGE SWIPE CONTROLS FOR MOBILE ---
         const swipeEdgeArea = document.getElementById('swipe-edge-area');
         let swipeStart = null;
-        let swipeActive = false;
-        let swipeAccel = false;
         let swipeDir = null;
+        let swipeAccel = false;
+
         function enableSwipeControls() {
             if (!isTouchDevice()) return;
             swipeEdgeArea.style.display = 'block';
@@ -549,62 +624,88 @@
         function disableSwipeControls() {
             swipeEdgeArea.style.display = 'none';
         }
-        function swipeDirection(dx, dy) {
-            if (Math.abs(dx) > Math.abs(dy)) {
-                if (dx > 16) return 'right';
-                if (dx < -16) return 'left';
-            } else {
-                if (dy > 16) return 'down';
-                if (dy < -16) return 'up';
-            }
-            return null;
-        }
-        swipeEdgeArea.addEventListener('touchstart', function (e) {
-            const touch = e.touches[0];
-            swipeStart = { x: touch.clientX, y: touch.clientY, t: Date.now() };
-            swipeActive = true;
-            swipeAccel = false;
+
+        swipeEdgeArea.addEventListener('touchstart', e => {
+            if (e.cancelable) e.preventDefault();
+            const t = e.touches[0];
+            swipeStart = { x: t.clientX, y: t.clientY };
             swipeDir = null;
+            swipeAccel = false;
+            holdingKey = false;
         }, { passive: false });
-        swipeEdgeArea.addEventListener('touchmove', function (e) {
-            if (!swipeActive) return;
-            const touch = e.touches[0];
-            let dx = touch.clientX - swipeStart.x;
-            let dy = touch.clientY - swipeStart.y;
-            let dir = swipeDirection(dx, dy);
+
+        swipeEdgeArea.addEventListener('touchmove', e => {
+            if (!swipeStart) return;
+            if (e.cancelable) e.preventDefault();
+            const t = e.touches[0];
+            let dx = t.clientX - swipeStart.x;
+            let dy = t.clientY - swipeStart.y;
+            let dir = null;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > THRESHOLD_TURN) dir = 'right';
+                else if (dx < -THRESHOLD_TURN) dir = 'left';
+            } else {
+                if (dy > THRESHOLD_TURN) dir = 'down';
+                else if (dy < -THRESHOLD_TURN) dir = 'up';
+            }
             if (dir && dir !== direction && !isOppositeDirection(dir, direction)) {
                 nextDirection = dir;
                 swipeDir = dir;
-                swipeAccel = true;
                 holdingKey = true;
-                heldDirection = dir;
             }
-            // If finger moves far in current direction, keep accelerating
-            if (dir === direction && (Math.abs(dx) > 32 || Math.abs(dy) > 32)) {
+            const delta = (dir === 'left' || dir === 'right') ? dx : dy;
+            if (swipeDir === dir && Math.abs(delta) > THRESHOLD_ACCEL) {
                 swipeAccel = true;
                 holdingKey = true;
-                heldDirection = dir;
             }
         }, { passive: false });
-        swipeEdgeArea.addEventListener('touchend', function (e) {
-            swipeActive = false;
+
+        swipeEdgeArea.addEventListener('touchend', e => {
+            swipeStart = null;
             swipeAccel = false;
             swipeDir = null;
             holdingKey = false;
-            heldDirection = null;
         }, { passive: false });
-        // Prevent accidental scrolling
-        swipeEdgeArea.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+
+        // --- PAUSE FEATURE ---
+        function togglePause() {
+            if (!gameStarted) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                showPausedOverlay();
+            } else {
+                hidePausedOverlay();
+                draw();
+            }
+        }
+        function resumeGame() {
+            if (isPaused) {
+                isPaused = false;
+                hidePausedOverlay();
+                draw();
+            }
+        }
+        function showPausedOverlay() {
+            pausedOverlay.style.display = "flex";
+        }
+        function hidePausedOverlay() {
+            pausedOverlay.style.display = "none";
+        }
+        pauseBtn.onclick = togglePause;
+        // Allow ESC or "P" or Space to pause/resume
+        window.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+                togglePause();
+            }
+        });
 
         // --- Main Game Loop ---
         function draw() {
+            if (isPaused) return;
             let targetNormalSpeed = getNormalSpeed(score);
-            if (isTouchDevice() && swipeActive && swipeDir && !tiltMode) {
-                if (swipeDir && heldDirection === direction) {
-                    currentSpeed = Math.max(targetNormalSpeed * 0.7, 18);
-                } else if (swipeDir && isOppositeDirection(swipeDir, direction)) {
-                    currentSpeed = Math.min(targetNormalSpeed * 1.5, 220);
-                }
+            // Apply swipe-based acceleration if active
+            if (swipeAccel && swipeDir === direction) {
+                currentSpeed = Math.max(minSpeed, currentSpeed - accelerationStep);
             }
             if (holdingKey && heldDirection === direction && currentSpeed < targetNormalSpeed - 3) {
                 animState = "accelerating";
