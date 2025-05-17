@@ -358,47 +358,67 @@
 
         #dpad-container {
             position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 3vw;
             z-index: 210;
             display: none;
+            pointer-events: none;
+        }
+
+        @media (max-width: 700px) {
+            #dpad-container {
+                bottom: 5vw;
+                pointer-events: auto;
+            }
+        }
+
+        @media (hover: hover) {
+
+            /* desktop / devices that have a mouse */
+            #dpad-container,
+            #reset-dpad-btn {
+                display: none !important;
+            }
+
+            #pause-btn,
+            #dark-mode-btn {
+                display: flex !important;
+            }
         }
 
         .dpad {
-            width: 94px;
-            height: 94px;
-            background: rgba(240, 248, 255, 0.6);
-            border-radius: 16px;
-            box-shadow: 0 1.5px 8px #bae6fd44;
+            width: 120px;
+            height: 140px;
+            background: none;
+            border-radius: 0;
+            box-shadow: none;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 6px;
-        }
-
-        .dpad-row {
-            display: flex;
-            flex-direction: row;
-            width: 100%;
-            justify-content: center;
+            gap: 0;
+            pointer-events: auto;
         }
 
         .dpad-btn {
-            background: #fff;
-            border: 1.5px solid #e0e7ef;
-            color: #0ea5e9;
-            width: 36px;
-            height: 36px;
-            margin: 6px;
-            border-radius: 12px;
+            background: transparent;
+            border: none;
+            margin: 5px;
+            padding: 0;
+            border-radius: 50%;
+            box-shadow: none;
+            width: 46px;
+            height: 46px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.15s, border 0.15s;
+            touch-action: manipulation;
         }
 
         .dpad-btn:active {
-            background: #e0f2fe;
-            border: 1.5px solid #0ea5e9;
+            background: #bae6fd66;
         }
 
         body.dark-mode .dpad {
@@ -455,12 +475,21 @@
         }
 
         @media (max-width: 700px) {
+            canvas#gameCanvas {
+                width: 90vw !important;
+                height: 90vw !important;
+                max-width: none;
+                max-height: none;
+            }
+
+
             .game-container {
-                gap: 2vw;
+                margin-top: 2vw !important;
             }
 
             #score-bar {
-                margin-bottom: 2vw;
+                margin-top: 1vw !important;
+                margin-bottom: 1vw !important;
             }
 
             #speed-bar-container {
@@ -501,19 +530,6 @@
 
             #tilt-sensitivity-bar {
                 width: 80px;
-            }
-        }
-
-        @media (min-width: 1024px) {
-
-            #dpad-container,
-            #reset-dpad-btn {
-                display: none !important;
-            }
-
-            #pause-btn,
-            #dark-mode-btn {
-                display: flex !important;
             }
         }
     </style>
@@ -562,39 +578,15 @@
                     <rect x="31" y="12" width="8" height="28" rx="4" fill="#0ea5e9" />
                 </svg>
             </div>
-            <div class="paused-title">Paused</div>
-            <div class="paused-score">Score: <span id="paused-score-value">0</span></div>
-            <button class="pause-btn-main" onclick="resumeGame()">Resume</button>
-            <button class="pause-btn-secondary" onclick="resetGameVars();resumeGame();">Restart</button>
+            <div class="paused-title" id="paused-title">Paused</div>
+            <div class="paused-score" id="paused-score-container">Score: <span id="paused-score-value">0</span></div>
+            <button class="pause-btn-main" id="overlay-main-btn" onclick="resumeGame()">Resume</button>
+            <button class="pause-btn-secondary" id="overlay-secondary-btn"
+                onclick="resetGameVars();resumeGame();">Restart</button>
             <button class="pause-btn-secondary" onclick="darkModeBtn.click()">Toggle Dark Mode</button>
         </div>
     </div>
-    <div id="dpad-placement-overlay">
-        <div id="dpad-placement-message">Tap anywhere to place your D-pad</div>
-    </div>
-    <div id="dpad-container">
-        <div class="dpad">
-            <div class="dpad-row">
-                <button class="dpad-btn" id="dpad-up"><svg viewBox="0 0 40 40" width="34" height="34">
-                        <polygon points="20,10 32,30 8,30" fill="white" />
-                    </svg></button>
-            </div>
-            <div class="dpad-row">
-                <button class="dpad-btn" id="dpad-left"><svg viewBox="0 0 40 40" width="34" height="34">
-                        <polygon points="10,20 30,8 30,32" fill="white" />
-                    </svg></button>
-                <div style="width:10px;"></div>
-                <button class="dpad-btn" id="dpad-right"><svg viewBox="0 0 40 40" width="34" height="34">
-                        <polygon points="30,20 10,8 10,32" fill="white" />
-                    </svg></button>
-            </div>
-            <div class="dpad-row">
-                <button class="dpad-btn" id="dpad-down"><svg viewBox="0 0 40 40" width="34" height="34">
-                        <polygon points="20,30 32,10 8,10" fill="white" />
-                    </svg></button>
-            </div>
-        </div>
-    </div>
+
     <input type="checkbox" id="haptic-switch" switch style="display:none">
     <div class="game-container">
         <div id="score-bar">Score: 0</div>
@@ -614,6 +606,29 @@
             <span id="tilt-sensitivity-value">12</span>
         </div>
         <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+    <div id="dpad-container">
+        <div class="dpad">
+            <button class="dpad-btn" id="dpad-up"><svg width="32" height="32">
+                    <circle cx="16" cy="16" r="14" fill="#fff" stroke="#0ea5e9" stroke-width="2" />
+                    <polygon points="16,7 23,22 9,22" fill="#0ea5e9" />
+                </svg></button>
+            <div style="display:flex;flex-direction:row;justify-content:center;">
+                <button class="dpad-btn" id="dpad-left"><svg width="32" height="32">
+                        <circle cx="16" cy="16" r="14" fill="#fff" stroke="#0ea5e9" stroke-width="2" />
+                        <polygon points="7,16 22,23 22,9" fill="#0ea5e9" />
+                    </svg></button>
+                <div style="width:22px"></div>
+                <button class="dpad-btn" id="dpad-right"><svg width="32" height="32">
+                        <circle cx="16" cy="16" r="14" fill="#fff" stroke="#0ea5e9" stroke-width="2" />
+                        <polygon points="25,16 10,9 10,23" fill="#0ea5e9" />
+                    </svg></button>
+            </div>
+            <button class="dpad-btn" id="dpad-down"><svg width="32" height="32">
+                    <circle cx="16" cy="16" r="14" fill="#fff" stroke="#0ea5e9" stroke-width="2" />
+                    <polygon points="16,25 9,10 23,10" fill="#0ea5e9" />
+                </svg></button>
+        </div>
     </div>
     <div id="control-modal"
         style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:5000;align-items:center;justify-content:center;">
@@ -669,7 +684,6 @@
         const pausedOverlay = document.getElementById("paused-overlay");
         const dpadContainer = document.getElementById("dpad-container");
         const resetDpadBtn = document.getElementById("reset-dpad-btn");
-        const dpadPlacementOverlay = document.getElementById("dpad-placement-overlay");
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreBar = document.getElementById('score-bar');
@@ -678,9 +692,11 @@
         const darkModeBtn = document.getElementById('dark-mode-btn');
 
         // Game state
+        let lastDrawDirection = 'right';   // track previous draw direction
+        let dpadPlacementMode = false;     // placement feature disabled
         let useTilt = false, tiltReady = false, useDpad = false;
         let tiltSensitivity = 12, baseGamma = 0, baseBeta = 0, tiltGammaAvg = 0, tiltBetaAvg = 0, smoothingFactor = 0.25;
-        let isPaused = false, gameStarted = false, dpadPos = { x: null, y: null }, dpadPlacementMode = false;
+        let isPaused = false, gameStarted = false;
         let dpadDirection = null, dpadHoldStart = null, dpadHolding = false;
         const KEYBOARD_ACCEL = 7, DPAD_ACCEL = 3;
         const ACCEL_RATE = 0.8;  // Lower for slower acceleration
@@ -695,6 +711,20 @@
         let particles = [];
         let tunnelAngle = 0; // For the tunnel's inertial direction
         let arrowMorph = 0;
+        let showStartOverlay = true;
+        function showStartOverlayFn() {
+            pausedOverlay.style.display = "flex";
+            document.getElementById('paused-title').textContent = "Snake Twist";
+            document.getElementById('paused-score-container').style.display = "none";
+            let mainBtn = document.getElementById('overlay-main-btn');
+            mainBtn.textContent = "Start Game";
+            mainBtn.onclick = function () {
+                showStartOverlay = false;
+                pausedOverlay.style.display = "none";
+                if (!isTouchDevice()) startGameWithKeyboard();
+            };
+            document.getElementById('overlay-secondary-btn').style.display = "none";
+        }
 
         function dirToAngle(dir) {
             if (dir === "right") return 0;
@@ -742,19 +772,14 @@
 
         // Responsive canvas sizing
         function adjustGridForScreen() {
-            let size = Math.min(window.innerWidth * 0.98, window.innerHeight * 0.74, 400);
-            if (size < 240) tileCount = 10;
-            else if (size < 340) tileCount = 16;
-            else if (size < 400) tileCount = 22;
-            else tileCount = 40;
-            gridSize = Math.floor(size / tileCount);
-            canvas.width = gridSize * tileCount;
-            canvas.height = gridSize * tileCount;
+            tileCount = 40;
+            gridSize = 10;
+            canvas.width = 400;
+            canvas.height = 400;
         }
         function fitCanvas() {
-            let size = Math.min(window.innerWidth * 0.98, window.innerHeight * 0.74, 400);
-            canvas.style.width = size + "px";
-            canvas.style.height = size + "px";
+            canvas.style.width = "400px";
+            canvas.style.height = "400px";
             adjustGridForScreen();
         }
         window.addEventListener("resize", fitCanvas);
@@ -840,19 +865,33 @@
             pauseBtn.hidden = false;
             resetDpadBtn.hidden = true;
             dpadContainer.style.display = "none";
+            minSpeed = 40;
+            currentSpeed = 120;
+            resetDpadBtn.style.display = "none";
             window.addEventListener('deviceorientation', deviceTiltHandler);
             isPaused = false; hidePausedOverlay();
             gameStarted = true;
             accelerationStep = KEYBOARD_ACCEL;
             lastFrameTime = performance.now();
             requestAnimationFrame(gameLoop);
+            // Fallback: if tilt not ready in 3 s, switch to D-Pad mode
+            setTimeout(() => {
+                if (!tiltReady && tiltMode) {
+                    window.removeEventListener('deviceorientation', deviceTiltHandler);
+                    startGameWithDpad();
+                }
+            }, 3000);
         }
         function startGameWithDpad() {
             tiltMode = false; useTilt = false; useDpad = true;
             resetGameVars();
             tiltSensitivityContainer.style.display = "none";
             pauseBtn.hidden = false;
-            resetDpadBtn.hidden = false;
+            resetDpadBtn.hidden = true;
+            dpadContainer.style.display = "block";
+            minSpeed = 40;
+            currentSpeed = 120;
+            resetDpadBtn.style.display = "none";
             isPaused = false; hidePausedOverlay();
             gameStarted = true;
             accelerationStep = DPAD_ACCEL;
@@ -865,6 +904,9 @@
             pauseBtn.hidden = true;
             resetDpadBtn.hidden = true;
             dpadContainer.style.display = "none";
+            minSpeed = 25;
+            currentSpeed = 100;
+            resetDpadBtn.style.display = "none";
             isPaused = false; hidePausedOverlay();
             gameStarted = true;
             accelerationStep = KEYBOARD_ACCEL;
@@ -875,46 +917,13 @@
         // --- D-Pad logic ---
         function setupDpad() {
             pauseBtn.hidden = false;
-            resetDpadBtn.hidden = false;
-            if (dpadPos.x === null || dpadPos.y === null) showDpadPlacement();
-            else {
-                dpadContainer.style.display = "block";
-                positionDpad(dpadPos.x, dpadPos.y);
-                startGameWithDpad();
-            }
-        }
-        function showDpadPlacement() {
-            dpadPlacementMode = true;
-            dpadPlacementOverlay.style.display = "flex";
-            pauseBtn.hidden = true;
             resetDpadBtn.hidden = true;
-            dpadContainer.style.display = "none";
-            isPaused = true;
-        }
-        function hideDpadPlacement() {
-            dpadPlacementMode = false;
-            dpadPlacementOverlay.style.display = "none";
-            pauseBtn.hidden = false;
-            resetDpadBtn.hidden = false;
             dpadContainer.style.display = "block";
-            isPaused = false;
+            resetDpadBtn.style.display = "none";
             startGameWithDpad();
         }
-        dpadPlacementOverlay.addEventListener('click', function (e) {
-            let x = e.touches ? e.touches[0].clientX : e.clientX;
-            let y = e.touches ? e.touches[0].clientY : e.clientY;
-            let dpw = dpadContainer.offsetWidth || 92, dph = dpadContainer.offsetHeight || 92;
-            x = Math.max(0, Math.min(window.innerWidth - dpw, x - dpw / 2));
-            y = Math.max(0, Math.min(window.innerHeight - dph, y - dph / 2));
-            dpadPos = { x, y };
-            positionDpad(x, y);
-            hideDpadPlacement();
-        });
-        function positionDpad(x, y) {
-            dpadContainer.style.left = x + "px";
-            dpadContainer.style.top = y + "px";
-        }
-        resetDpadBtn.onclick = showDpadPlacement;
+        // Remove D-pad placement logic and overlay
+        // resetDpadBtn.onclick = function () {};
         // --- D-Pad Button Handlers ---
         ["up", "down", "left", "right"].forEach(dir => {
             let btn = document.getElementById('dpad-' + dir);
@@ -1054,6 +1063,12 @@
         }
         function showPausedOverlay() {
             pausedOverlay.style.display = "flex";
+            document.getElementById('paused-title').textContent = "Paused";
+            document.getElementById('paused-score-container').style.display = "block";
+            let mainBtn = document.getElementById('overlay-main-btn');
+            mainBtn.textContent = "Resume";
+            mainBtn.onclick = resumeGame;
+            document.getElementById('overlay-secondary-btn').style.display = "inline-block";
             document.getElementById('paused-score-value').textContent = score;
             darkModeBtn.style.zIndex = 4000;
         }
@@ -1079,7 +1094,7 @@
 
         // --- Main Game Loop ---
         // --- Smooth Animation Game Loop ---
-        let animationFrameId2 = null;
+
         function gameLoop(now) {
             if (gameOverTriggered) { return; }
             let headAngle = dirToAngle(direction);
@@ -1098,6 +1113,14 @@
             if (isPaused) { requestAnimationFrame(gameLoop); return; }
 
             // Speed/acceleration logic
+            const frameSpeedRatio = Math.max(
+                0,
+                Math.min(
+                    1,
+                    (getNormalSpeed(score) - currentSpeed) /
+                    (getNormalSpeed(score) - minSpeed)
+                )
+            );
             let targetNormalSpeed = getNormalSpeed(score);
             if (holdingKey && heldDirection === direction && currentSpeed < targetNormalSpeed - 3) animState = "accelerating";
             else if (holdingKey && isOppositeDirection(heldDirection, direction) && currentSpeed > targetNormalSpeed + 3) animState = "braking";
@@ -1121,7 +1144,7 @@
                 }
             }
             // Arrow morphing logic
-            let speedRatio = Math.max(0, Math.min(1, (getNormalSpeed(score) - currentSpeed) / (getNormalSpeed(score) - minSpeed)));
+            let speedRatio = frameSpeedRatio;
             // Smoothly animate arrowMorph toward speedRatio at a slower pace for a more fluid morph
             let arrowMorphRate = (Math.abs(speedRatio - arrowMorph) > 0.18) ? 0.18 : 0.065;
             arrowMorph += (speedRatio - arrowMorph) * arrowMorphRate;
@@ -1211,9 +1234,9 @@
                         ctx.shadowColor = "#0ea5e9bb";
                         ctx.shadowBlur = 8;
                         // Gradually decrease width as speed increases
-                        let speedRatio = Math.max(0, Math.min(1, (getNormalSpeed(score) - currentSpeed) / (getNormalSpeed(score) - minSpeed)));
+                        let speedRatio = frameSpeedRatio;
                         // width goes from normal (1.0) to skinny (0.36) as speed increases
-                        let widthFactor = 1 - 0.64 * speedRatio;
+                        const widthFactor = 1 - 0.64 * frameSpeedRatio;
                         let w, h;
                         if (direction === "left" || direction === "right") {
                             w = gridSize * 0.94;
@@ -1520,19 +1543,22 @@
         window.onload = function () {
             fitCanvas();
             darkModeBtn.hidden = false;
+            resetDpadBtn.style.display = "none";
             if (isTouchDevice()) {
                 controlModal.style.display = "flex";
                 pauseBtn.hidden = true;
                 resetDpadBtn.hidden = true;
+                resetDpadBtn.style.display = "none";
             } else {
                 // Desktop: attach keyboard handlers, hide touch UI
                 pauseBtn.hidden = true;
                 pauseBtn.hidden = false;
                 resetDpadBtn.hidden = true;
                 dpadContainer.style.display = "none";
+                resetDpadBtn.style.display = "none";
                 document.addEventListener('keydown', tapKeydownHandler);
                 document.addEventListener('keyup', tapKeyupHandler);
-                startGameWithKeyboard();
+                showStartOverlayFn();
             }
         };
 
