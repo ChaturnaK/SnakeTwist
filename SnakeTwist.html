@@ -255,6 +255,14 @@
         <div id="joystick-bg"></div>
         <div id="joystick-knob"></div>
     </div>
+    <div id="joystick-place-overlay"
+        style="display:none;position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.45);z-index:120;align-items:center;justify-content:center;font-size:1.5em;font-family:sans-serif;color:white;text-align:center;">
+        <div>Tap anywhere to place your joystick<br><span style="font-size:1em;opacity:.7;">(You can change this later
+                in menu)</span></div>
+    </div>
+    <button id="reset-joystick-btn"
+        style="display:none;position:fixed;right:12vw;bottom:12vw;z-index:130;padding:10px 16px;border-radius:8px;font-size:1em;background:#38bdf8;color:#fff;border:none;box-shadow:0 2px 8px #bae6fd88;">Reset
+        Joystick</button>
     <!-- Control Modal -->
     <div id="control-modal">
         <div>
@@ -872,6 +880,59 @@
         }
         window.addEventListener("resize", fitCanvas);
         fitCanvas();
+        // Joystick placement by tap (mobile)
+        const joystickPlaceOverlay = document.getElementById('joystick-place-overlay');
+        const resetJoystickBtn = document.getElementById('reset-joystick-btn');
+
+        function setJoystickPos(x, y) {
+            joystickContainer.style.left = x + 'px';
+            joystickContainer.style.top = y + 'px';
+            joystickContainer.style.right = '';
+            joystickContainer.style.bottom = '';
+            joystickContainer.style.position = 'fixed';
+        }
+        function showJoystickPlacement() {
+            joystickPlaceOverlay.style.display = 'flex';
+            joystickContainer.style.display = 'none';
+            resetJoystickBtn.style.display = 'none';
+        }
+        function saveJoystickPos(x, y) {
+            localStorage.setItem('joystickPos', JSON.stringify({ x, y }));
+        }
+        function restoreJoystickPos() {
+            let joyPos = localStorage.getItem('joystickPos');
+            if (joyPos) {
+                let pos = JSON.parse(joyPos);
+                setJoystickPos(pos.x, pos.y);
+                joystickContainer.style.display = 'block';
+                resetJoystickBtn.style.display = 'block';
+            }
+        }
+        if (isTouchDevice()) {
+            // If no position saved, ask for placement
+            if (!localStorage.getItem('joystickPos')) {
+                showJoystickPlacement();
+            } else {
+                restoreJoystickPos();
+            }
+            // Placement overlay tap
+            joystickPlaceOverlay.addEventListener('touchstart', function (e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                let x = touch.clientX - 46;
+                let y = touch.clientY - 46;
+                saveJoystickPos(x, y);
+                setJoystickPos(x, y);
+                joystickContainer.style.display = 'block';
+                resetJoystickBtn.style.display = 'block';
+                joystickPlaceOverlay.style.display = 'none';
+            }, { once: false });
+            // Reset joystick button
+            resetJoystickBtn.addEventListener('click', function () {
+                localStorage.removeItem('joystickPos');
+                showJoystickPlacement();
+            });
+        }
     </script>
 </body>
 
