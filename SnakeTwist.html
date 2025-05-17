@@ -431,7 +431,7 @@
             tiltMode = false;
             resetGameVars();
             tiltSensitivityContainer.style.display = "none";
-            iosTapInstructions.style.display = "none";
+            if (typeof iosTapInstructions !== 'undefined' && iosTapInstructions) iosTapInstructions.style.display = "none";
             if (!gameStarted) {
                 document.addEventListener('keydown', tapKeydownHandler);
                 document.addEventListener('keyup', tapKeyupHandler);
@@ -444,7 +444,7 @@
             tiltMode = true;
             resetGameVars();
             tiltSensitivityContainer.style.display = "flex";
-            iosTapInstructions.style.display = "none";
+            if (typeof iosTapInstructions !== 'undefined' && iosTapInstructions) iosTapInstructions.style.display = "none";
             window.addEventListener('deviceorientation', deviceTiltHandler);
             gameStarted = true;
             draw();
