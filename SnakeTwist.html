@@ -759,7 +759,9 @@
             let dir = absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
             dpadPress(dir);
             dpadRelease(dir);
-            swipeStartX = null; swipeStartY = null;
+            // Instead of resetting to null, update to current touch position for continuous detection
+            swipeStartX = t.clientX;
+            swipeStartY = t.clientY;
         }, { passive: false });
 
         dpadContainer.addEventListener('touchend', function (e) {
@@ -1278,6 +1280,11 @@
         window.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') togglePause();
         });
+        // Support immediate pause on touch devices
+        pauseBtn.addEventListener('touchstart', function (e) {
+            e.preventDefault();
+            togglePause();
+        }, { passive: false });
 
         function normalizeAngle(a) {
             while (a <= -Math.PI) a += 2 * Math.PI;
@@ -1759,6 +1766,10 @@
                 document.addEventListener('keyup', tapKeyupHandler);
                 showStartOverlayFn();
             }
+            // Hide mobile browser address bar once the page loads
+            setTimeout(() => {
+                window.scrollTo(0, 1);
+            }, 50);
         };
 
         // --- Dark Mode Toggle ---
@@ -1766,7 +1777,18 @@
         darkModeBtn.onclick = function () {
             dark = !dark;
             document.body.classList.toggle('dark-mode', dark);
-            darkModeBtn.textContent = dark ? "☀️" : "🌙";
+            const moonIcon = document.getElementById('dark-mode-icon-moon');
+            const sunIcon = document.getElementById('dark-mode-icon-sun');
+            const sunRays = document.getElementById('dark-mode-rays');
+            if (dark) {
+                moonIcon.setAttribute('opacity', '0');
+                sunIcon.setAttribute('opacity', '1');
+                sunRays.setAttribute('opacity', '1');
+            } else {
+                moonIcon.setAttribute('opacity', '1');
+                sunIcon.setAttribute('opacity', '0');
+                sunRays.setAttribute('opacity', '0');
+            }
         };
 
     </script>
