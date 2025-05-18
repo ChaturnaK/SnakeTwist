@@ -15,6 +15,11 @@
     <!-- Favicon (optional, use your own path) -->
     <link rel="icon" href="favicon.ico">
     <style>
+        html,
+        body {
+            overflow: hidden;
+        }
+
         body {
             background: linear-gradient(135deg, #e9e9f2 0%, #f6faff 100%);
             min-height: 100vh;
@@ -67,7 +72,8 @@
         }
 
         body.dark-mode .dpad {
-            background: rgba(14, 165, 233, 0.17);
+            background: transparent !important;
+            box-shadow: none !important;
         }
 
         body.dark-mode .dpad-btn {
@@ -438,12 +444,13 @@
         }
 
         body.dark-mode .dpad {
-            background: rgba(28, 33, 48, 0.9);
+            background: transparent !important;
+            box-shadow: none !important;
         }
 
         body.dark-mode .dpad-btn {
             background: #222b3a;
-            border: 1.5px solid #0ea5e9;
+            border: none;
             color: #38bdf8;
         }
 
@@ -735,37 +742,27 @@
         // --- D-Pad Swipe Support ---
         let swipeStartX = null, swipeStartY = null;
         dpadContainer.addEventListener('touchstart', function (e) {
-            // Only record single-finger swipes (no multitouch)
             if (e.touches.length === 1) {
-                const t = e.touches[0];
-                swipeStartX = t.clientX;
-                swipeStartY = t.clientY;
+                swipeStartX = e.touches[0].clientX;
+                swipeStartY = e.touches[0].clientY;
             }
         }, { passive: false });
 
-        dpadContainer.addEventListener('touchend', function (e) {
+        dpadContainer.addEventListener('touchmove', function (e) {
             if (swipeStartX === null || swipeStartY === null) return;
-            const t = e.changedTouches[0];
+            const t = e.touches[0];
             const dx = t.clientX - swipeStartX;
             const dy = t.clientY - swipeStartY;
             const absDx = Math.abs(dx), absDy = Math.abs(dy);
-
-            // Minimum swipe distance threshold (in px)
             const threshold = 30;
-            if (absDx < threshold && absDy < threshold) {
-                swipeStartX = null; swipeStartY = null;
-                return; // not a strong enough swipe
-            }
-
-            let dir = null;
-            if (absDx > absDy) {
-                dir = dx > 0 ? 'right' : 'left';
-            } else {
-                dir = dy > 0 ? 'down' : 'up';
-            }
-            // Simulate D-Pad press & release
+            if (absDx < threshold && absDy < threshold) return;
+            let dir = absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
             dpadPress(dir);
-            setTimeout(() => dpadRelease(dir), 60); // quick release for swipe
+            dpadRelease(dir);
+            swipeStartX = null; swipeStartY = null;
+        }, { passive: false });
+
+        dpadContainer.addEventListener('touchend', function (e) {
             swipeStartX = null; swipeStartY = null;
         }, { passive: false });
 
@@ -887,9 +884,23 @@
             canvas.height = 400;
         }
         function fitCanvas() {
-            canvas.style.width = "400px";
-            canvas.style.height = "400px";
-            adjustGridForScreen();
+            // Responsive, sharp canvas for mobile/desktop
+            let isMobile = window.innerWidth < 700 || isTouchDevice();
+            let dpr = window.devicePixelRatio || 1;
+            if (isMobile) {
+                let size = Math.min(window.innerWidth, window.innerHeight) * 0.90;
+                canvas.width = Math.round(size * dpr);
+                canvas.height = Math.round(size * dpr);
+                canvas.style.width = size + "px";
+                canvas.style.height = size + "px";
+                gridSize = canvas.width / tileCount;
+            } else {
+                canvas.width = 400 * dpr;
+                canvas.height = 400 * dpr;
+                canvas.style.width = "400px";
+                canvas.style.height = "400px";
+                gridSize = canvas.width / tileCount;
+            }
         }
         window.addEventListener("resize", fitCanvas);
         fitCanvas();
