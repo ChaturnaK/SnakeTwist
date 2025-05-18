@@ -726,6 +726,7 @@
         const darkModeBtn = document.getElementById('dark-mode-btn');
 
         // Game state
+        let dpadListenersAdded = false; // Track if listeners are added
         let lastDrawDirection = 'right';   // track previous draw direction
         let dpadPlacementMode = false;     // placement feature disabled
         let useTilt = false, tiltReady = false, useDpad = false;
@@ -765,7 +766,10 @@
                 pausedOverlay.style.display = "none";
                 if (!isTouchDevice()) startGameWithKeyboard();
             };
+            // Only start button visible, no secondary button
             document.getElementById('overlay-secondary-btn').style.display = "none";
+            // Show pause button if appropriate
+            if (pauseBtn) pauseBtn.hidden = true;
         }
 
         function dirToAngle(dir) {
@@ -839,6 +843,11 @@
             );
         }
         function resetGameVars() {
+            // Cancel any previous animation frame before starting a new game loop
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
             // Each segment tracks x, y, realX, realY, prevX, prevY
             snake = [{ x: 10, y: 10, realX: 10, realY: 10, prevX: 10, prevY: 10 }];
             direction = 'right';
@@ -915,7 +924,7 @@
             gameStarted = true;
             accelerationStep = KEYBOARD_ACCEL;
             lastFrameTime = performance.now();
-            requestAnimationFrame(gameLoop);
+            animationFrameId = requestAnimationFrame(gameLoop);
             // Fallback: if tilt not ready in 3 s, switch to D-Pad mode
             setTimeout(() => {
                 if (!tiltReady && tiltMode) {
@@ -938,7 +947,7 @@
             gameStarted = true;
             accelerationStep = DPAD_ACCEL;
             lastFrameTime = performance.now();
-            requestAnimationFrame(gameLoop);
+            animationFrameId = requestAnimationFrame(gameLoop);
         }
         function startGameWithKeyboard() {
             resetGameVars();
@@ -953,7 +962,7 @@
             gameStarted = true;
             accelerationStep = KEYBOARD_ACCEL;
             lastFrameTime = performance.now();
-            requestAnimationFrame(gameLoop);
+            animationFrameId = requestAnimationFrame(gameLoop);
         }
 
         // --- D-Pad logic ---
@@ -962,19 +971,37 @@
             resetDpadBtn.hidden = true;
             dpadContainer.style.display = "block";
             resetDpadBtn.style.display = "none";
+            if (!dpadListenersAdded) addDpadListeners();
             startGameWithDpad();
         }
         // Remove D-pad placement logic and overlay
         // resetDpadBtn.onclick = function () {};
         // --- D-Pad Button Handlers ---
-        ["up", "down", "left", "right"].forEach(dir => {
-            let btn = document.getElementById('dpad-' + dir);
-            btn.addEventListener('touchstart', e => { e.preventDefault(); dpadPress(dir); }, { passive: false });
-            btn.addEventListener('mousedown', e => { e.preventDefault(); dpadPress(dir); });
-            btn.addEventListener('touchend', e => { e.preventDefault(); dpadRelease(dir); }, { passive: false });
-            btn.addEventListener('mouseup', e => { e.preventDefault(); dpadRelease(dir); });
-            btn.addEventListener('mouseleave', e => { dpadRelease(dir); });
-        });
+        // ["up", "down", "left", "right"].forEach(dir => {
+        //     let btn = document.getElementById('dpad-' + dir);
+        //     btn.addEventListener('touchstart', e => { e.preventDefault(); dpadPress(dir); }, { passive: false });
+        //     btn.addEventListener('mousedown', e => { e.preventDefault(); dpadPress(dir); });
+        //     btn.addEventListener('touchend', e => { e.preventDefault(); dpadRelease(dir); }, { passive: false });
+        //     btn.addEventListener('mouseup', e => { e.preventDefault(); dpadRelease(dir); });
+        //     btn.addEventListener('mouseleave', e => { dpadRelease(dir); });
+        // });
+        function addDpadListeners() {
+            ["up", "down", "left", "right"].forEach(dir => {
+                let btn = document.getElementById('dpad-' + dir);
+                // Remove previous listeners by replacing the button node
+                let newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+
+                newBtn.addEventListener('touchstart', e => { e.preventDefault(); dpadPress(dir); }, { passive: false });
+                newBtn.addEventListener('mousedown', e => { e.preventDefault(); dpadPress(dir); });
+                newBtn.addEventListener('touchend', e => { e.preventDefault(); dpadRelease(dir); }, { passive: false });
+                newBtn.addEventListener('mouseup', e => { e.preventDefault(); dpadRelease(dir); });
+                newBtn.addEventListener('mouseleave', e => { dpadRelease(dir); });
+                newBtn.addEventListener('touchcancel', e => { dpadRelease(dir); });
+                newBtn.addEventListener('pointercancel', e => { dpadRelease(dir); });
+            });
+            dpadListenersAdded = true;
+        }
         function dpadPress(direction) {
             if (dpadPlacementMode) return;
             if (direction !== nextDirection && !isOppositeDirection(direction, nextDirection)) {
@@ -1132,6 +1159,24 @@
             document.getElementById('overlay-secondary-btn').style.display = "inline-block";
             document.getElementById('paused-score-value').textContent = score;
             darkModeBtn.style.zIndex = 4000;
+            // Show pause button if appropriate
+            if (pauseBtn) pauseBtn.hidden = false;
+        }
+
+        function showGameOverOverlay() {
+            pausedOverlay.style.display = "flex";
+            document.getElementById('paused-title').textContent = "Game Over";
+            document.getElementById('paused-score-container').style.display = "block";
+            let mainBtn = document.getElementById('overlay-main-btn');
+            mainBtn.textContent = "Restart";
+            mainBtn.onclick = function () {
+                resetGameVars();
+                resumeGame();
+            };
+            document.getElementById('overlay-secondary-btn').style.display = "none";
+            document.getElementById('paused-score-value').textContent = score;
+            darkModeBtn.style.zIndex = 4000;
+            if (pauseBtn) pauseBtn.hidden = true;
         }
         function hidePausedOverlay() {
             pausedOverlay.style.display = "none";
@@ -1171,7 +1216,7 @@
             let delta = now - lastFrameTime;
 
             lastFrameTime = now;
-            if (isPaused) { requestAnimationFrame(gameLoop); return; }
+            if (isPaused) { animationFrameId = requestAnimationFrame(gameLoop); return; }
 
             // Speed/acceleration logic
             const frameSpeedRatio = Math.max(
@@ -1323,7 +1368,7 @@
             scoreBar.innerHTML = `Score: <span style="color:#06b6d4">${score}</span>`;
             updateSpeedBar(animState, currentSpeed, getNormalSpeed(score), minSpeed, maxSlowSpeed);
 
-            requestAnimationFrame(gameLoop);
+            animationFrameId = requestAnimationFrame(gameLoop);
         }
         function lerpColor(a, b, t) {
             // a, b are hex colors like "#0ea5e9"
@@ -1572,13 +1617,13 @@
         function gameOver() {
             if (gameOverTriggered) return;
             gameOverTriggered = true;
-            clearTimeout(animationFrameId);
-            setTimeout(() => {
-                alert(`Game Over! Your score: ${score}`);
-                resetGameVars();
-                lastFrameTime = performance.now();
-                requestAnimationFrame(gameLoop);
-            }, 200);
+            // Cancel the previous animation frame if it exists
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            // Show the custom overlay instead of alert
+            showGameOverOverlay();
         }
         function roundedRect(ctx, x, y, w, h, r) {
             ctx.beginPath();
