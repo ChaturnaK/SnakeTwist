@@ -20,9 +20,7 @@
         }
 
         html,
-        body {
-            overflow: hidden;
-        }
+
 
         body {
             background: linear-gradient(135deg, #e9e9f2 0%, #f6faff 100%);
@@ -374,6 +372,8 @@
             z-index: 210;
             display: none;
             pointer-events: none;
+            overscroll-behavior: contain;
+            touch-action: none;
         }
 
         @media (max-width: 700px) {
@@ -405,6 +405,8 @@
             justify-content: center;
             align-content: center;
             pointer-events: auto;
+            overscroll-behavior: contain;
+            touch-action: none;
         }
 
         #dpad-up {
@@ -440,7 +442,8 @@
             align-items: center;
             justify-content: center;
             transition: background 0.15s, border 0.15s;
-            touch-action: manipulation;
+            touch-action: none;
+            overscroll-behavior: contain;
         }
 
         .dpad-btn:active {
