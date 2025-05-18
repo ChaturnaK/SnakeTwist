@@ -616,10 +616,9 @@
             </div>
             <div class="paused-title" id="paused-title">Paused</div>
             <div class="paused-score" id="paused-score-container">Score: <span id="paused-score-value">0</span></div>
-            <button class="pause-btn-main" id="overlay-main-btn" onclick="resumeGame()">Resume</button>
-            <button class="pause-btn-secondary" id="overlay-secondary-btn"
-                onclick="resetGameVars();resumeGame();">Restart</button>
-            <button class="pause-btn-secondary" onclick="darkModeBtn.click()">Toggle Dark Mode</button>
+            <button class="pause-btn-main" id="overlay-main-btn">Resume</button>
+            <button class="pause-btn-secondary" id="overlay-secondary-btn">Restart</button>
+            <button class="pause-btn-secondary" id="overlay-dark-btn">Toggle Dark Mode</button>
         </div>
     </div>
 
@@ -733,6 +732,47 @@
         let tiltSensitivity = 12,     // still drives the UI slider (optional)
             baseGamma = 0, baseBeta = 0;
 
+        // --- D-Pad Swipe Support ---
+        let swipeStartX = null, swipeStartY = null;
+        dpadContainer.addEventListener('touchstart', function (e) {
+            // Only record single-finger swipes (no multitouch)
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                swipeStartX = t.clientX;
+                swipeStartY = t.clientY;
+            }
+        }, { passive: false });
+
+        dpadContainer.addEventListener('touchend', function (e) {
+            if (swipeStartX === null || swipeStartY === null) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - swipeStartX;
+            const dy = t.clientY - swipeStartY;
+            const absDx = Math.abs(dx), absDy = Math.abs(dy);
+
+            // Minimum swipe distance threshold (in px)
+            const threshold = 30;
+            if (absDx < threshold && absDy < threshold) {
+                swipeStartX = null; swipeStartY = null;
+                return; // not a strong enough swipe
+            }
+
+            let dir = null;
+            if (absDx > absDy) {
+                dir = dx > 0 ? 'right' : 'left';
+            } else {
+                dir = dy > 0 ? 'down' : 'up';
+            }
+            // Simulate D-Pad press & release
+            dpadPress(dir);
+            setTimeout(() => dpadRelease(dir), 60); // quick release for swipe
+            swipeStartX = null; swipeStartY = null;
+        }, { passive: false });
+
+        dpadContainer.addEventListener('touchcancel', function () {
+            swipeStartX = null; swipeStartY = null;
+        });
+
         /* Tilt‑control constants & state */
         const DEAD = 4, ACT = 14, FILTER = 0.10;   // degrees / EMA α
         let rawTilt = { x: 0, y: 0 },
@@ -759,16 +799,23 @@
             pausedOverlay.style.display = "flex";
             document.getElementById('paused-title').textContent = "Snake Twist";
             document.getElementById('paused-score-container').style.display = "none";
+            // Clean button listeners
             let mainBtn = document.getElementById('overlay-main-btn');
-            mainBtn.textContent = "Start Game";
-            mainBtn.onclick = function () {
+            let newMainBtn = mainBtn.cloneNode(true);
+            mainBtn.parentNode.replaceChild(newMainBtn, mainBtn);
+            newMainBtn.textContent = "Start Game";
+            newMainBtn.onclick = function () {
                 showStartOverlay = false;
                 pausedOverlay.style.display = "none";
                 if (!isTouchDevice()) startGameWithKeyboard();
             };
             // Only start button visible, no secondary button
             document.getElementById('overlay-secondary-btn').style.display = "none";
-            // Show pause button if appropriate
+            // Clean and set dark mode overlay button
+            let darkBtn = document.getElementById('overlay-dark-btn');
+            let newDarkBtn = darkBtn.cloneNode(true);
+            darkBtn.parentNode.replaceChild(newDarkBtn, darkBtn);
+            newDarkBtn.onclick = () => darkModeBtn.click();
             if (pauseBtn) pauseBtn.hidden = true;
         }
 
@@ -813,6 +860,22 @@
                 if (p.life < 1 || p.alpha < 0.05) {
                     particles.splice(i, 1);
                 }
+            }
+        }
+
+        function restartGame() {
+            // Reset game state
+            gameOverTriggered = false;
+            resetGameVars();
+            isPaused = false;
+            hidePausedOverlay();
+            // Start the game loop using the current control mode
+            if (useDpad) {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            } else if (useTilt) {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            } else {
+                animationFrameId = requestAnimationFrame(gameLoop);
             }
         }
 
@@ -861,8 +924,9 @@
             animTick = 0;
             lastTiltDir = null;
             animProgress = 1;
-            gameOverTriggered = false;
             tunnelAngle = dirToAngle(direction)
+            // Ensure this is always set last
+            gameOverTriggered = false;
         }
 
         // Control mode logic
@@ -1154,12 +1218,23 @@
             document.getElementById('paused-title').textContent = "Paused";
             document.getElementById('paused-score-container').style.display = "block";
             let mainBtn = document.getElementById('overlay-main-btn');
-            mainBtn.textContent = "Resume";
-            mainBtn.onclick = resumeGame;
-            document.getElementById('overlay-secondary-btn').style.display = "inline-block";
+            let newMainBtn = mainBtn.cloneNode(true);
+            mainBtn.parentNode.replaceChild(newMainBtn, mainBtn);
+            newMainBtn.textContent = "Resume";
+            newMainBtn.onclick = resumeGame;
+            // Secondary "Restart" button logic
+            let secondaryBtn = document.getElementById('overlay-secondary-btn');
+            let newSecBtn = secondaryBtn.cloneNode(true);
+            secondaryBtn.parentNode.replaceChild(newSecBtn, secondaryBtn);
+            newSecBtn.style.display = "inline-block";
+            newSecBtn.textContent = "Restart";
+            newSecBtn.onclick = restartGame;
             document.getElementById('paused-score-value').textContent = score;
+            let darkBtn = document.getElementById('overlay-dark-btn');
+            let newDarkBtn = darkBtn.cloneNode(true);
+            darkBtn.parentNode.replaceChild(newDarkBtn, darkBtn);
+            newDarkBtn.onclick = () => darkModeBtn.click();
             darkModeBtn.style.zIndex = 4000;
-            // Show pause button if appropriate
             if (pauseBtn) pauseBtn.hidden = false;
         }
 
@@ -1168,13 +1243,19 @@
             document.getElementById('paused-title').textContent = "Game Over";
             document.getElementById('paused-score-container').style.display = "block";
             let mainBtn = document.getElementById('overlay-main-btn');
-            mainBtn.textContent = "Restart";
-            mainBtn.onclick = function () {
-                resetGameVars();
-                resumeGame();
-            };
-            document.getElementById('overlay-secondary-btn').style.display = "none";
+            let newMainBtn = mainBtn.cloneNode(true);
+            mainBtn.parentNode.replaceChild(newMainBtn, mainBtn);
+            newMainBtn.textContent = "Restart";
+            newMainBtn.onclick = restartGame;
+            let secondaryBtn = document.getElementById('overlay-secondary-btn');
+            let newSecBtn = secondaryBtn.cloneNode(true);
+            secondaryBtn.parentNode.replaceChild(newSecBtn, secondaryBtn);
+            newSecBtn.style.display = "none";
             document.getElementById('paused-score-value').textContent = score;
+            let darkBtn = document.getElementById('overlay-dark-btn');
+            let newDarkBtn = darkBtn.cloneNode(true);
+            darkBtn.parentNode.replaceChild(newDarkBtn, darkBtn);
+            newDarkBtn.onclick = () => darkModeBtn.click();
             darkModeBtn.style.zIndex = 4000;
             if (pauseBtn) pauseBtn.hidden = true;
         }
