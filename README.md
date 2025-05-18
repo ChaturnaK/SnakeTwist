@@ -1,3 +1,3 @@
 Snake Twist
 
-https://chaturnak.github.io/SnakeTwist/index.html
+https://chaturnak.github.io/SnakeTwist/st.html
