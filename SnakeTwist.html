@@ -712,7 +712,15 @@
         let lastDrawDirection = 'right';   // track previous draw direction
         let dpadPlacementMode = false;     // placement feature disabled
         let useTilt = false, tiltReady = false, useDpad = false;
-        let tiltSensitivity = 12, baseGamma = 0, baseBeta = 0, tiltGammaAvg = 0, tiltBetaAvg = 0, smoothingFactor = 0.25;
+        let tiltSensitivity = 12,     // still drives the UI slider (optional)
+            baseGamma = 0, baseBeta = 0;
+
+        /* Tilt‑control constants & state */
+        const DEAD = 4, ACT = 14, FILTER = 0.10;   // degrees / EMA α
+        let rawTilt = { x: 0, y: 0 },
+            smoothTilt = { x: 0, y: 0 },
+            tiltOK = false,
+            tiltPower = 1;             // 0‒1 analogue value, 1 for keyboard/D‑pad
         let isPaused = false, gameStarted = false;
         let dpadDirection = null, dpadHoldStart = null, dpadHolding = false;
         const KEYBOARD_ACCEL = 7, DPAD_ACCEL = 3;
@@ -1025,43 +1033,62 @@
             }
         }
 
-        // --- Tilt Handler (with smoothing and sensitivity) ---
+
+        /* ----- Revised tilt pipeline (orientation‑aware, smoothed) ----- */
+
+        function axesFromEvent(e) {
+            const angle = screen.orientation?.angle || window.orientation || 0;
+            switch (angle) {
+                case 90: return { x: e.beta, y: -e.gamma };   // rotated right
+                case 270: return { x: -e.beta, y: e.gamma };   // rotated left
+                default: return { x: e.gamma, y: e.beta };   // portrait
+            }
+        }
+
+        /* just store raw axes; smoothing happens per‑frame */
         function deviceTiltHandler(e) {
             if (!tiltMode || !tiltReady) return;
-            tiltGammaAvg = tiltGammaAvg * (1 - smoothingFactor) + (e.gamma || 0) * smoothingFactor;
-            tiltBetaAvg = tiltBetaAvg * (1 - smoothingFactor) + (e.beta || 0) * smoothingFactor;
-            let dx = tiltGammaAvg - baseGamma;
-            let dy = tiltBetaAvg - baseBeta;
-            let newDir = null;
-            if (dx > tiltSensitivity && direction !== 'left' && lastTiltDir !== 'right') {
-                newDir = 'right';
-            } else if (dx < -tiltSensitivity && direction !== 'right' && lastTiltDir !== 'left') {
-                newDir = 'left';
-            } else if (dy > tiltSensitivity && direction !== 'up' && lastTiltDir !== 'down') {
-                newDir = 'down';
-            } else if (dy < -tiltSensitivity && direction !== 'down' && lastTiltDir !== 'up') {
-                newDir = 'up';
+            rawTilt = axesFromEvent(e);
+            tiltOK = true;
+        }
+
+        /* per‑frame smoothing + direction update */
+        function tiltLoop() {
+            if (tiltMode && tiltOK) {
+                smoothTilt.x += FILTER * (rawTilt.x - smoothTilt.x);
+                smoothTilt.y += FILTER * (rawTilt.y - smoothTilt.y);
+                applyTilt(smoothTilt.x, smoothTilt.y);
             }
-            if (newDir) {
-                nextDirection = newDir;
-                holdingKey = true;
-                heldDirection = newDir;
-                lastTiltDir = newDir;
+            requestAnimationFrame(tiltLoop);
+        }
+        requestAnimationFrame(tiltLoop);
+
+        /* dominant‑axis 4‑way control + analogue power */
+        function applyTilt(gamma, beta) {
+            const dx = gamma, dy = beta;
+            const ax = Math.abs(dx), ay = Math.abs(dy);
+
+            if (ax < DEAD && ay < DEAD) {
+                holdingKey = false;
+                heldDirection = null;
+                tiltPower = 0;
+                return;
+            }
+
+            if (ax > ay) {
+                chooseDir(dx > 0 ? 'right' : 'left', ax);
             } else {
-                if (
-                    (direction === 'left' && dx > tiltSensitivity / 2) ||
-                    (direction === 'right' && dx < -tiltSensitivity / 2) ||
-                    (direction === 'up' && dy > tiltSensitivity / 2) ||
-                    (direction === 'down' && dy < -tiltSensitivity / 2)
-                ) {
-                    holdingKey = true;
-                    heldDirection = (direction === 'left' || direction === 'right') ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-                } else {
-                    holdingKey = false;
-                    heldDirection = null;
-                    lastTiltDir = null;
-                }
+                chooseDir(dy > 0 ? 'down' : 'up', ay);
             }
+        }
+
+        function chooseDir(dir, mag) {
+            tiltPower = Math.min(1, (mag - DEAD) / (ACT - DEAD));
+            if (tiltPower < 0) tiltPower = 0;
+
+            nextDirection = dir;
+            holdingKey = true;
+            heldDirection = dir;
         }
 
         // --- PAUSE FEATURE ---
@@ -1143,8 +1170,9 @@
             else if (holdingKey && isOppositeDirection(heldDirection, direction) && currentSpeed > targetNormalSpeed + 3) animState = "braking";
             else animState = "normal";
             if (holdingKey && heldDirection === direction) {
+                const accel = ACCEL_RATE * (tiltPower || 1);
                 if (currentSpeed > minSpeed) {
-                    currentSpeed -= ACCEL_RATE;
+                    currentSpeed -= accel;
                     if (currentSpeed < minSpeed) currentSpeed = minSpeed;
                 }
             } else if (holdingKey && isOppositeDirection(heldDirection, direction)) {
