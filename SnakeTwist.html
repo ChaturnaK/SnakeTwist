@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Snake Game (Responsive, D-Pad/Tilt)</title>
     <!-- Modern Inter Font from Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap" rel="stylesheet">
@@ -15,6 +15,10 @@
     <!-- Favicon (optional, use your own path) -->
     <link rel="icon" href="favicon.ico">
     <style>
+        body {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
         html,
         body {
             overflow: hidden;
@@ -366,7 +370,7 @@
             position: fixed;
             left: 50%;
             transform: translateX(-50%);
-            bottom: 3vw;
+            bottom: calc(3vw + env(safe-area-inset-bottom));
             z-index: 210;
             display: none;
             pointer-events: none;
@@ -374,7 +378,7 @@
 
         @media (max-width: 700px) {
             #dpad-container {
-                bottom: 5vw;
+                bottom: calc(5vw + env(safe-area-inset-bottom)) !important;
                 pointer-events: auto;
             }
         }
